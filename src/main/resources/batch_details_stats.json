@@ -1,0 +1,18 @@
+{
+  "batch_details_id": 21,
+  "source": "Demo 1",
+  "translator": "kelvin",
+  "numberOfSentences": 11,
+  "sentences_translated": 11,
+  "moderator": "kelvin",
+  "sentences_approved": 9,
+  "sentences_rejected": 2,
+  "expert": "kelvin",
+  "sentences_expert_approved": 1,
+  "sentences_expert_rejected": 1,
+  "recorder": "kelvin",
+  "audios_recorded": 11,
+  "audioModerator": "kelvin",
+  "audios_approved": 9,
+  "audios_rejected": 2
+}

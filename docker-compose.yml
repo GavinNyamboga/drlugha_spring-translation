@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  springboot-app:
+    image: lugha
+    ports:
+      - "8080:8080"
+    deploy:
+      replicas: 3
+      restart_policy:
+        condition: on-failure

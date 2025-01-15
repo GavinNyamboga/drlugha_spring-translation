@@ -1,0 +1,57 @@
+{
+  "translator": [
+    {
+      "sentences_translated": 11,
+      "sentences_approved": 9,
+      "sentences_rejected": 2,
+      "batch_details_id": 20,
+      "source": "Demo 1",
+      "totalSentences": 11
+    },
+    {
+      "sentences_translated": 11,
+      "sentences_approved": 9,
+      "sentences_rejected": 2,
+      "batch_details_id": 21,
+      "source": "Demo 2",
+      "totalSentences": 11
+    }
+  ],
+  "moderator": [
+    {
+      "sentences_approved": 9,
+      "sentences_rejected": 2,
+      "batch_details_id": 20,
+      "source": "Demo 1",
+      "totalSentences": 11
+    }
+  ],
+  "expert": [
+    {
+      "sentences_expert_approved": 1,
+      "sentences_expert_rejected": 1,
+      "batch_details_id": 21,
+      "source": "Demo 2",
+      "totalSentences": 11
+    }
+  ],
+  "recorder": [
+    {
+      "audios_recorded": 11,
+      "audios_approved": 9,
+      "audios_rejected": 2,
+      "batch_details_id": 21,
+      "source": "Demo 2",
+      "totalSentences": 11
+    }
+  ],
+  "audioModerator": [
+    {
+      "audios_approved": 9,
+      "audios_rejected": 2,
+      "batch_details_id": 21,
+      "source": "Demo 2",
+      "totalSentences": 11
+    }
+  ]
+}

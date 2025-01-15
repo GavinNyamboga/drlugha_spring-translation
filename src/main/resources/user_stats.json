@@ -1,0 +1,24 @@
+{
+  "translator": {
+    "sentences_translated": 22,
+    "sentences_approved": 18,
+    "sentences_rejected": 4
+  },
+  "moderator": {
+    "sentences_approved": 9,
+    "sentences_rejected": 2
+  },
+  "expert": {
+    "sentences_expert_approved": 1,
+    "sentences_expert_rejected": 1
+  },
+  "recorder": {
+    "audio_recorded": 11,
+    "audios_approved": 9,
+    "audios_rejected": 2
+  },
+  "audioModerator": {
+    "audios_approved": 9,
+    "audios_rejected": 2
+  }
+}
