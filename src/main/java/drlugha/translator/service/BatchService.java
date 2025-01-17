@@ -85,6 +85,7 @@ public class BatchService {
 
     public ResponseEntity<ResponseMessage> addBatch(BatchDTO batchDto) {
         BatchEntity batchEntity = batchDto.dtoToEntity();
+        batchEntity.setFromFeedback(YesNo.NO);
         BatchEntity batch = this.batchRepo.save(batchEntity);
         return this.sentenceService.addSentences(batchDto.getSentences(), batch.getBatchNo());
     }
@@ -770,16 +771,34 @@ public class BatchService {
         if (sourceLanguage == null)
             throw new RuntimeException(String.format("Source Language (%s) not found", feedbackDTO.getSourceLanguage()));
 
+        BatchEntity batch = batchRepo.findByTargetLanguage_LanguageIdAndSourceLanguage_LanguageIdAndFromFeedback(targetLanguage.getLanguageId(), sourceLanguage.getLanguageId(), YesNo.YES);
+        BatchDetailsEntity batchDetailsEntity = null;
+        if (batch != null)
+            batchDetailsEntity = batchDetailsRepo.findByBatchIdAndLanguageId(batch.getBatchNo(), targetLanguage.getLanguageId());
 
-        BatchEntity batch = batchRepo.findBySourceAndSourceLanguage_LanguageId("User feedback", sourceLanguage.getLanguageId());
+        BatchDetailsStatsEntity batchDetailsStatsEntity = null;
+        if (batchDetailsEntity != null)
+            batchDetailsStatsEntity = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsEntity.getBatchDetailsId()).orElse(null);
+
         if (batch == null) {
             batch = new BatchEntity();
             batch.setSource("User feedback");
             batch.setBatchType(BatchType.TEXT);
-            batch.setDescription("Received from user feedback Source Language: " + sourceLanguage.getName());
+            batch.setFromFeedback(YesNo.YES);
+            batch.setDescription(String.format("User feedback from %s to %s", sourceLanguage.getName(), targetLanguage.getName()));
             batch.setDeletionStatus(DeletionStatus.NOT_DELETED);
+            batch.setTargetLanguage(targetLanguage);
             batch.setSourceLanguage(sourceLanguage);
             batch = batchRepo.save(batch);
+        }
+
+        if (batchDetailsEntity == null) {
+            batchDetailsEntity = new BatchDetailsEntity();
+            batchDetailsEntity.setBatchId(batch.getBatchNo());
+            batchDetailsEntity.setBatchStatus(BatchStatus.translated);
+            batchDetailsEntity.setLanguage(targetLanguage);
+            batchDetailsEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
+            batchDetailsEntity = batchDetailsRepo.save(batchDetailsEntity);
         }
 
         SentenceEntity sentenceEntity = new SentenceEntity();
@@ -788,12 +807,16 @@ public class BatchService {
         sentenceEntity.setDateCreated(new Date());
         sentenceEntity = sentenceRepository.save(sentenceEntity);
 
-        BatchDetailsEntity batchDetailsEntity = new BatchDetailsEntity();
-        batchDetailsEntity.setBatchId(batch.getBatchNo());
-        batchDetailsEntity.setBatchStatus(BatchStatus.translated);
-        batchDetailsEntity.setLanguage(targetLanguage);
-        batchDetailsEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
-        batchDetailsEntity = batchDetailsRepo.save(batchDetailsEntity);
+        if (batchDetailsStatsEntity == null) {
+            batchDetailsStatsEntity = new BatchDetailsStatsEntity();
+            batchDetailsStatsEntity.setBatchDetails(batchDetailsEntity);
+            batchDetailsStatsEntity.setSentencesTranslated(1);
+            batchDetailsStatsEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
+            batchDetailsStatsRepository.save(batchDetailsStatsEntity);
+        } else {
+            batchDetailsStatsEntity.setSentencesTranslated(batchDetailsStatsEntity.getSentencesTranslated() + 1);
+            batchDetailsStatsRepository.save(batchDetailsStatsEntity);
+        }
 
         TranslatedSentenceEntity translatedSentenceEntity = new TranslatedSentenceEntity();
         translatedSentenceEntity.setDateCreated(new Date());

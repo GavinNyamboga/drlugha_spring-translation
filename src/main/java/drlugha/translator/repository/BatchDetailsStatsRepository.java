@@ -3,6 +3,7 @@ package drlugha.translator.repository;
 import drlugha.translator.DTOs.stats.TotalUserStatsDto;
 import drlugha.translator.entity.BatchDetailsStatsEntity;
 import drlugha.translator.enums.BatchType;
+import drlugha.translator.enums.YesNo;
 import drlugha.translator.projections.*;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -171,5 +172,8 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
 
     @Query("SELECT b FROM BatchDetailsStatsEntity b WHERE b.batchDetails.batch.batchType = :batchType ")
     List<BatchDetailsStatsEntity> findAllByBatchType(BatchType batchType, Sort by);
+
+    @Query("SELECT b FROM BatchDetailsStatsEntity b WHERE b.batchDetails.batch.batchType = :batchType and b.batchDetails.batch.fromFeedback=:fromFeedback")
+    List<BatchDetailsStatsEntity> findAllByBatchTypeAndFromFeedback(BatchType batchType, YesNo fromFeedback, Sort by);
 
 }

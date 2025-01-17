@@ -114,4 +114,7 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetailsEntity
             "GROUP BY s.sentenceId, s.sentenceText, s.audioLink, t.translatedSentenceId, t.translatedText")
     List<SentenceEntity> findAllSentencesByBatchDetailsId(@Param("batchDetailsId") Long batchDetailsId);
 
+    @Query("SELECT b FROM BatchDetailsEntity b WHERE b.batchId=:batchNo and b.language.languageId=:languageId")
+    BatchDetailsEntity findByBatchIdAndLanguageId(Long batchNo, Long languageId);
+
 }

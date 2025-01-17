@@ -6,6 +6,7 @@ import drlugha.translator.entity.BatchDetailsStatsEntity;
 import drlugha.translator.entity.UsersEntity;
 import drlugha.translator.enums.BatchType;
 import drlugha.translator.enums.StatusTypes;
+import drlugha.translator.enums.YesNo;
 import drlugha.translator.projections.*;
 import drlugha.translator.repository.*;
 import drlugha.translator.response.ResponseMessage;
@@ -70,14 +71,17 @@ public class BatchDetailsStatsService {
     }
 
     public ResponseEntity getBatchDetailsStats(String batchTypeString) {
-        Optional<BatchType> batchTypeOptional = BatchType.fromName(batchTypeString);
-        BatchType batchType;
-        if (batchTypeOptional.isEmpty()) {
-            batchType = BatchType.TEXT;
+        BatchType batchType = BatchType.fromName(batchTypeString).orElse(BatchType.TEXT);
+
+        List<BatchDetailsStatsEntity> userStats;
+        if (batchType == BatchType.TEXT_FEEDBACK) {
+            userStats = batchDetailsStatsRepository.findAllByBatchTypeAndFromFeedback(BatchType.TEXT, YesNo.YES,
+                    Sort.by("batchDetails.batchId", "batchDetails.language"));
         } else {
-            batchType = batchTypeOptional.get();
+            userStats = batchDetailsStatsRepository.findAllByBatchType(batchType,
+                    Sort.by("batchDetails.batchId", "batchDetails.language"));
         }
-        List<BatchDetailsStatsEntity> userStats = batchDetailsStatsRepository.findAllByBatchType(batchType, Sort.by("batchDetails.batchId", "batchDetails.language"));
+
         List<BatchDetailsStats> batchDetailsStats = userStats.stream()
                 .map(BatchDetailsStats::entityToDto)
                 .collect(Collectors.toList());

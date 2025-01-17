@@ -10,8 +10,10 @@ import drlugha.translator.DTOs.batchDetails.BatchInfoDto;
 import drlugha.translator.DTOs.batchDetails.BatchInfoStatsDto;
 import drlugha.translator.DTOs.sentenceDTOs.SentenceItemDto;
 import drlugha.translator.entity.BatchDetailsEntity;
+import drlugha.translator.entity.BatchEntity;
 import drlugha.translator.enums.BatchType;
 import drlugha.translator.enums.Task;
+import drlugha.translator.enums.YesNo;
 import drlugha.translator.repository.BatchDetailsRepository;
 import drlugha.translator.repository.BatchRepository;
 import drlugha.translator.response.ResponseMessage;
@@ -32,7 +34,6 @@ import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -60,14 +61,15 @@ public class BatchController {
     @GetMapping("/all/batches")
     public ResponseEntity<List<BatchResponseDto>> getAllBatches(@RequestParam(required = false) String batchType) {
         logger.info("Received request to get all batches with type: {}", batchType);
-        BatchType batchTypeEnum;
-        Optional<BatchType> batchTypeOptional = BatchType.fromName(batchType);
-        if (batchTypeOptional.isEmpty()) {
-            batchTypeEnum = BatchType.TEXT;
-        } else {
-            batchTypeEnum = batchTypeOptional.get();
-        }
-        List<BatchResponseDto> batchResponseDtos = this.batchRepo.findAllByBatchType(batchTypeEnum)
+        BatchType batchTypeEnum = BatchType.fromName(batchType).orElse(BatchType.TEXT);
+        logger.info("BATCH TYPE: {}", batchTypeEnum);
+        List<BatchEntity> batchEntities;
+        if (batchTypeEnum == BatchType.TEXT_FEEDBACK)
+            batchEntities = batchRepo.findAllByBatchTypeAndFromFeedback(BatchType.TEXT, YesNo.YES);
+        else
+            batchEntities = batchRepo.findAllByBatchType(batchTypeEnum);
+
+        List<BatchResponseDto> batchResponseDtos = batchEntities
                 .stream()
                 .map(BatchResponseDto::new)
                 .collect(Collectors.toList());

@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import drlugha.translator.enums.BatchOrigin;
 import drlugha.translator.enums.BatchType;
 import drlugha.translator.enums.DeletionStatus;
+import drlugha.translator.enums.YesNo;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
 import org.hibernate.annotations.Where;
@@ -61,6 +62,14 @@ public class BatchEntity {
     @JoinColumn(name = "source_language", referencedColumnName = "languageId")
     @ManyToOne
     private LanguageEntity sourceLanguage;
+
+    @JoinColumn(name = "target_language", referencedColumnName = "languageId")
+    @ManyToOne
+    private LanguageEntity targetLanguage;
+
+    @Column
+    @Enumerated(EnumType.STRING)
+    private YesNo fromFeedback = YesNo.NO;
 
     public BatchEntity(String source, String linkUrl, String description, BatchType batchType, LanguageEntity language) {
         this.source = source;
