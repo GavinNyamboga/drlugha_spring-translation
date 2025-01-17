@@ -4,9 +4,9 @@ import java.util.Arrays;
 import java.util.Optional;
 
 public enum BatchType {
-    TEXT("Text"),
-    AUDIO("Audio"),
-    TEXT_FEEDBACK("Text_Feedback"),;
+    TEXT("text"),
+    AUDIO("audio"),
+    TEXT_FEEDBACK("text_feedback"),;
 
     private final String name;
 

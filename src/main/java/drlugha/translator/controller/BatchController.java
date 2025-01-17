@@ -177,9 +177,9 @@ public class BatchController {
 
     @GetMapping({"/user-batch-details"})
     public BatchInfoDto getBatchDetailsByTask(@RequestParam Long userId, @RequestParam(defaultValue = "0") Integer task) {
-        if (task.intValue() >= (Task.values()).length)
-            task = Integer.valueOf(0);
-        return this.batchService.getBatchDetailsByTask(userId, Task.values()[task.intValue()]);
+        if (task >= (Task.values()).length)
+            task = 0;
+        return this.batchService.getBatchDetailsByTask(userId, Task.values()[task]);
     }
 
     @GetMapping({"batch-details/completed-sentences"})

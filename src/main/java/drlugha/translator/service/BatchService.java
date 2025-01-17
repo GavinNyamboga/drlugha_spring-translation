@@ -16,6 +16,7 @@ import drlugha.translator.entity.*;
 import drlugha.translator.enums.*;
 import drlugha.translator.repository.*;
 import drlugha.translator.response.ResponseMessage;
+import lombok.extern.slf4j.Slf4j;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Sort;
@@ -27,6 +28,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.*;
 import java.util.stream.Collectors;
 
+@Slf4j
 @Service
 public class BatchService {
     public static final String RESPONSE = "response";
@@ -370,6 +372,7 @@ public class BatchService {
     }
 
     public BatchInfoDto getBatchDetailsByTask(Long userId, Task task) {
+        log.info("TASK....{}", task);
         switch (task) {
             case translation:
                 return getTranslatorBatchDetails(userId);
@@ -823,7 +826,7 @@ public class BatchService {
         translatedSentenceEntity.setReviewStatus(StatusTypes.unreviewed);
         translatedSentenceEntity.setSentenceId(sentenceEntity.getSentenceId());
         translatedSentenceEntity.setTranslatedText(feedbackDTO.getEditedTranslatedText());
-        translatedSentenceEntity.setBatchDetailsId(batchDetailsEntity.getBatchId());
+        translatedSentenceEntity.setBatchDetailsId(batchDetailsEntity.getBatchDetailsId());
         translatedSentenceEntity.setLanguage(targetLanguage);
         translatedSentenceEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
         translatedSentenceRepository.save(translatedSentenceEntity);

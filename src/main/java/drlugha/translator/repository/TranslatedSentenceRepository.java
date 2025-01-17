@@ -90,7 +90,7 @@ public interface TranslatedSentenceRepository extends JpaRepository<TranslatedSe
             @Param("endDate") Date endDate
     );
 
-    @Query("select t from TranslatedSentenceEntity t where t.batchDetailsId = :batchDetailId  and (recorded_status is null OR recorded_status != 4)")
+    @Query("select t from TranslatedSentenceEntity t where t.batchDetailsId = :batchDetailId  and (t.recordedStatus is null OR t.recordedStatus != 4)")
     List<TranslatedSentenceEntity> findUnrecordedVoiceTasks(@Param("batchDetailId") Long batchDetailId);
 
     Integer countAllByBatchDetailsIdAndReviewStatus(Long batchDetailsId, StatusTypes status);
