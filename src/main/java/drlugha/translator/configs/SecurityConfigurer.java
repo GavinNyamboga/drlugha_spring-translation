@@ -1,7 +1,7 @@
 package drlugha.translator.configs;
 
-import drlugha.translator.filter.JwtRequestFilter;
-import drlugha.translator.service.MyUserDetailsService;
+import drlugha.translator.security.JwtRequestFilter;
+import drlugha.translator.auth.service.MyUserDetailsService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
