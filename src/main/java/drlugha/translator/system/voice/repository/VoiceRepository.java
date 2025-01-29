@@ -1,7 +1,7 @@
 package drlugha.translator.system.voice.repository;
 
-import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.system.voice.model.VoiceEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -34,7 +34,8 @@ public interface VoiceRepository extends JpaRepository<VoiceEntity, Long> {
             @Param("endDate") Date endDate
     );
 
-    List<VoiceEntity> findAllByTranslatedSentenceBatchDetails_BatchDetailsId(Long batchDetailsId);
+    @Query("SELECT v from VoiceEntity v where v.userId=:userId and v.batchDetailsId=:batchDetailsId")
+    List<VoiceEntity> findAllRecordedVoiceByBatchDetailsIdAndUserId(@Param("userId") Long userId, @Param("batchDetailsId") Long batchDetailsId);
 
     int countAllByTranslatedSentenceBatchDetails_BatchDetailsId(Long batchDetailsId);
 
@@ -45,4 +46,9 @@ public interface VoiceRepository extends JpaRepository<VoiceEntity, Long> {
     @Query("SELECT v FROM VoiceEntity v WHERE v.translatedSentence.batchDetailsId = :batchDetailsId")
     List<VoiceEntity> findAllByBatchDetailsId(Long batchDetailsId);
 
+    @Query("SELECT v.voiceId from VoiceEntity v where v.batchDetailsId=:batchDetailsId and v.userId in :userIds")
+    List<Long> fetchVoiceIdsByRecorderIds(@Param("batchDetailsId") Long batchDetailsId, @Param("userIds") List<Long> recorderIds);
+
+    @Query("SELECT v.voiceId from VoiceEntity v where v.batchDetailsId=:batchDetailsId and v.userId in :userIds")
+    List<Long> fetchVoiceIdsByRecorderIdsAndTranslatedSentenceId(@Param("batchDetailsId") Long batchDetailsId, @Param("userIds") List<Long> recorderIds);
 }

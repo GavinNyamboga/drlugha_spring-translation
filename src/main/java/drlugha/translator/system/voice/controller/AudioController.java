@@ -52,7 +52,9 @@ public class AudioController extends BaseController {
     }
 
     @GetMapping({"/recorder/tasks"})
-    public ResponseEntity<SentenceToRecordDto> usersAudioTasks(@RequestParam(defaultValue = "assignedRecorder") BatchStatus batchStatus, @RequestParam Long recorderId, @RequestParam(required = false) Long batchDetailsId) {
+    public ResponseEntity<SentenceToRecordDto> usersAudioTasks(@RequestParam(defaultValue = "assignedRecorder") BatchStatus batchStatus,
+                                                               @RequestParam Long recorderId,
+                                                               @RequestParam(required = false) Long batchDetailsId) {
         return this.voiceSvc.recorderAssignedTasks(recorderId, batchStatus, batchDetailsId);
     }
 
@@ -96,10 +98,10 @@ public class AudioController extends BaseController {
         return this.voiceSvc.rejectVoiceRecording(voiceId);
     }
 
-    @PostMapping("/uploadFile/{translatedSentenceId}")
+    @PostMapping("/storage/uploadFile/{translatedSentenceId}")
     public ResponseEntity<ResponseMessage> uploadFile(@RequestPart("file") MultipartFile file,
                                                       @PathVariable Long translatedSentenceId,
-                                                      @RequestParam Long userId,
+                                                      @RequestParam(required = false) Long userId,
                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) throws Exception {
         return this.amazonClient.uploadFile(file, translatedSentenceId, null, userId, authorizationHeader);
     }

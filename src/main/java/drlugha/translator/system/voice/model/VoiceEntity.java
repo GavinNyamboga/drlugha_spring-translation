@@ -48,6 +48,9 @@ public class VoiceEntity {
     @JoinColumn(name = "user_id", referencedColumnName = "userId")
     private User user;
 
+    @Column(name = "user_id", insertable = false, updatable = false)
+    private Long userId;
+
     @Column(name = "batch_details_id")
     private Long batchDetailsId;
 

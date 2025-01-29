@@ -1,20 +1,20 @@
 package drlugha.translator.system.voice.service;
 
 import drlugha.translator.configs.AmazonClient;
+import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
 import drlugha.translator.system.batch.repository.BatchDetailsStatsRepository;
 import drlugha.translator.system.sentence.dto.SentenceToRecordDto;
 import drlugha.translator.system.sentence.dto.TranslatedSentenceItemDto;
-import drlugha.translator.system.sentence.repository.TranslatedSentenceLogsRepo;
-import drlugha.translator.system.sentence.repository.TranslatedSentenceRepository;
-import drlugha.translator.system.voice.model.*;
-import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.sentence.model.TranslatedSentenceLogsEntity;
-import drlugha.translator.shared.enums.StatusTypes;
-import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.system.sentence.repository.TranslatedSentenceLogsRepo;
+import drlugha.translator.system.sentence.repository.TranslatedSentenceRepository;
+import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.system.voice.repository.VoiceRepository;
 import drlugha.translator.util.JwtUtil;
 import org.slf4j.Logger;
@@ -157,11 +157,11 @@ public class VoiceService {
     public ResponseEntity<SentenceToRecordDto> recorderAssignedTasks(Long recorderId, BatchStatus batchStatus, Long batchDetailsId) {
         List<BatchDetailsEntity> batchDetails;
         if (batchDetailsId != null) {
-            batchDetails = batchDetailsRepo.findByRecordedByIdAndBatchDetailsId(recorderId, batchDetailsId);
+            batchDetails = batchDetailsRepo.findByBatchDetailsIdAndAssignedRecorder(batchDetailsId, recorderId);
         } else {
-            batchDetails = batchDetailsRepo.findByRecordedByIdAndBatchStatus(recorderId, batchStatus);
-            ;
+            batchDetails = batchDetailsRepo.findByAssignedRecorderAndBatchStatus(batchStatus, recorderId);
         }
+
 
         Long batchDetailId = null;
         List<TranslatedSentenceItemDto> unrecordedVoiceDto = new ArrayList<>();
@@ -173,12 +173,13 @@ public class VoiceService {
             for (BatchDetailsEntity aBatchDetail : batchDetails) {
                 batchDetailId = aBatchDetail.getBatchDetailsId();
                 language = aBatchDetail.getLanguage().getName();
-                List<TranslatedSentenceEntity> unrecordedVoiceTasks = translatedSentenceRepo.findUnrecordedVoiceTasks(batchDetailId);
+
+                List<TranslatedSentenceEntity> unrecordedVoiceTasks = translatedSentenceRepo.findUnrecordedVoiceTasksAndUserId(batchDetailId, recorderId);
                 unrecordedVoiceDto = unrecordedVoiceTasks.stream()
                         .map(entity -> TranslatedSentenceItemDto.entityToDto(entity, null, null))
                         .collect(Collectors.toList());
 
-                List<VoiceEntity> recordedVoiceTasks = voiceRepo.findAllByTranslatedSentenceBatchDetails_BatchDetailsId(batchDetailId);
+                List<VoiceEntity> recordedVoiceTasks = voiceRepo.findAllRecordedVoiceByBatchDetailsIdAndUserId(recorderId, batchDetailId);
                 recordedVoiceTasksDto = recordedVoiceTasks.stream()
                         .map(entity -> {
                             Boolean isAccepted;

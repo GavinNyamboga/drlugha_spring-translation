@@ -90,7 +90,16 @@ public interface TranslatedSentenceRepository extends JpaRepository<TranslatedSe
             @Param("endDate") Date endDate
     );
 
-    @Query("select t from TranslatedSentenceEntity t where t.batchDetailsId = :batchDetailId  and (t.recordedStatus is null OR t.recordedStatus != 4)")
+//    @Query("select t from TranslatedSentenceEntity t where t.batchDetailsId = :batchDetailId  and (t.recordedStatus is null OR t.recordedStatus != 4)")
+//    List<TranslatedSentenceEntity> findUnrecordedVoiceTasks(@Param("batchDetailId") Long batchDetailId);
+
+    @Query("select distinct(t) from TranslatedSentenceEntity t inner join BatchDetailsUserAssignment u on u.batchDetailsId=t.batchDetailsId " +
+            " left join VoiceEntity v on t.translatedSentenceId=v.translatedSentenceId and u.userId=v.userId" +
+            " where t.batchDetailsId = :batchDetailId  and t.deletionStatus=0 and u.userId=:userId and u.batchRole='AUDIO_RECORDER' and v.voiceId is null")
+    List<TranslatedSentenceEntity> findUnrecordedVoiceTasksAndUserId(@Param("batchDetailId") Long batchDetailId, @Param("userId") Long userId);
+
+    @Query("select distinct(t) from TranslatedSentenceEntity t left join VoiceEntity v on t.translatedSentenceId=v.translatedSentenceId" +
+            " where t.batchDetailsId = :batchDetailId  and t.deletionStatus=0 and v.voiceId is null")
     List<TranslatedSentenceEntity> findUnrecordedVoiceTasks(@Param("batchDetailId") Long batchDetailId);
 
     Integer countAllByBatchDetailsIdAndReviewStatus(Long batchDetailsId, StatusTypes status);

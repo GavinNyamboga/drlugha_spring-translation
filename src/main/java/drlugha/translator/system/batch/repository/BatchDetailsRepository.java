@@ -1,12 +1,13 @@
 package drlugha.translator.system.batch.repository;
 
-import drlugha.translator.system.sentence.dto.SentenceItemDto;
-import drlugha.translator.system.stats.dto.TotalSentencesDto;
-import drlugha.translator.system.stats.dto.TotalTranslatedSentencesDto;
-import drlugha.translator.system.batch.model.BatchDetailsEntity;
-import drlugha.translator.system.sentence.model.Sentence;
 import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.enums.BatchType;
+import drlugha.translator.system.batch.enums.UserBatchRole;
+import drlugha.translator.system.batch.model.BatchDetailsEntity;
+import drlugha.translator.system.sentence.dto.SentenceItemDto;
+import drlugha.translator.system.sentence.model.Sentence;
+import drlugha.translator.system.stats.dto.TotalSentencesDto;
+import drlugha.translator.system.stats.dto.TotalTranslatedSentencesDto;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -40,7 +41,9 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetailsEntity
 
     List<BatchDetailsEntity> findAllBySecondReviewerIdAndBatch_BatchType(long userId, BatchType batchType);
 
-    List<BatchDetailsEntity> findAllByRecordedById(long userId);
+    @Query("SELECT b from BatchDetailsEntity b inner join BatchDetailsUserAssignment ua on ua.batchDetailsId=b.batchDetailsId" +
+            " WHERE b.deletionStatus=0 and ua.batchRole='AUDIO_RECORDER' and ua.userId=:userId")
+    List<BatchDetailsEntity> findAllByRecordedById(@Param("userId") Long userId);
 
     List<BatchDetailsEntity> findAllByAudioVerifiedById(long userId);
 
@@ -117,4 +120,14 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetailsEntity
     @Query("SELECT b FROM BatchDetailsEntity b WHERE b.batchId=:batchNo and b.language.languageId=:languageId")
     BatchDetailsEntity findByBatchIdAndLanguageId(Long batchNo, Long languageId);
 
+    @Query("SELECT b from BatchDetailsEntity b inner join BatchDetailsUserAssignment ua on ua.batchDetailsId=b.batchDetailsId" +
+            " WHERE b.deletionStatus=0 and ua.batchRole='AUDIO_RECORDER' and b.batchDetailsId=:batchDetailsId and ua.userId=:recorderId")
+    List<BatchDetailsEntity> findByBatchDetailsIdAndAssignedRecorder(@Param("batchDetailsId") Long batchDetailsId, @Param("recorderId") Long recorderId);
+
+    @Query("SELECT b from BatchDetailsEntity b inner join BatchDetailsUserAssignment ua on ua.batchDetailsId=b.batchDetailsId" +
+            " WHERE b.deletionStatus=0 and ua.batchRole='AUDIO_RECORDER' and ua.userId=:recorderId and b.batchStatus=:batchStatus")
+    List<BatchDetailsEntity> findByAssignedRecorderAndBatchStatus(@Param("batchStatus") BatchStatus batchStatus, @Param("recorderId") Long recorderId);
+
+    @Query(value = "SELECT b.userId FROM BatchDetailsUserAssignment b WHERE b.batchDetailsId=:batchDetailsId and b.batchRole=:batchRole")
+    List<Long> fetchAssignedUserIdsFromBatchDetails(@Param("batchDetailsId") Long batchDetailsId, @Param("batchRole") UserBatchRole batchRole);
 }

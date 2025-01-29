@@ -650,6 +650,22 @@ public class BatchService {
         BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
         if (batchDetails == null)
             return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
+
+        //check voice count ensure all recorders have recorded
+        List<Long> recorderIds = batchDetailsRepo.fetchAssignedUserIdsFromBatchDetails(batchDetailsId, UserBatchRole.AUDIO_RECORDER);
+        if (recorderIds == null || recorderIds.isEmpty()) {
+            log.info("NO RECORDERS FOUND..........");
+        } else {
+            List<Long> voiceIds = voiceRepo.fetchVoiceIdsByRecorderIds(batchDetailsId, recorderIds);
+            if (voiceIds == null || voiceIds.isEmpty()) {
+                log.info("NO VOICES FOUND.............");
+            } else {
+                if (recorderIds.size() != voiceIds.size()) {
+                    return ResponseEntity.ok(new ResponseMessage("All voice recorders have not recorded"));
+                }
+            }
+        }
+
         if (batchDetails.getBatchStatus().ordinal() < BatchStatus.recorded.ordinal()) {
             List<TranslatedSentenceEntity> voiceTasks = this.voiceService.findVoiceTasks(batchDetailsId);
             if (voiceTasks.isEmpty()) {
