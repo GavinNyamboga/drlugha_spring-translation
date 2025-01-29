@@ -2,30 +2,50 @@ package drlugha.translator.system.stats.dto;
 
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
-import lombok.Data;
+import lombok.*;
 
-@Data
+import java.util.ArrayList;
+import java.util.List;
+
+@Getter
+@Setter
+@ToString
+@AllArgsConstructor
+@NoArgsConstructor
 public class BatchDetailsStats {
     private Long batchDetailsId;
+    private Long batchNo;
     private String source;
-
     private String language;
-
     private String status;
+
+    private Integer numberOfSentences;
+    private Integer sentencesTranslated;
+    private Integer sentencesApproved;
+    private Integer sentencesRejected;
+    private Integer sentencesExpertApproved;
+    private Integer sentencesExpertRejected;
+    private Integer audiosRecorded;
+    private Integer audiosApproved;
+    private Integer audiosRejected;
     private String translator;
-    private int numberOfSentences;
-    private int sentencesTranslated;
     private String moderator;
-    private int sentencesApproved;
-    private int sentencesRejected;
     private String expert;
-    private int sentencesExpertApproved;
-    private int sentencesExpertRejected;
     private String recorder;
-    private int audiosRecorded;
     private String audioModerator;
-    private int audiosApproved;
-    private int audiosRejected;
+
+    private List<AudioStats> audioStats = new ArrayList<>();
+
+    @Getter
+    @Setter
+    @AllArgsConstructor
+    @NoArgsConstructor
+    public static class AudioStats {
+        private String recorder;
+        private Integer audiosRecorded;
+        private Integer audiosApproved;
+        private Integer audiosRejected;
+    }
 
     public static BatchDetailsStats entityToDto(BatchDetailsStatsEntity batchDetailsStatsEntity) {
         BatchDetailsStats batchDetailsStats = new BatchDetailsStats();

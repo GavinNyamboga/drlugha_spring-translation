@@ -1,7 +1,9 @@
 package drlugha.translator.system.voice.model;
 
-import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.system.batch.model.BatchDetailsEntity;
+import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.user.model.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -45,6 +47,14 @@ public class VoiceEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "user_id", referencedColumnName = "userId")
     private User user;
+
+    @Column(name = "batch_details_id")
+    private Long batchDetailsId;
+
+    @JsonIgnore
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "batch_details_id", insertable = false, updatable = false)
+    private BatchDetailsEntity batchDetails;
 }
 
 

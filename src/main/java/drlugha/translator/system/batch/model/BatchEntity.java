@@ -69,7 +69,7 @@ public class BatchEntity {
     @ManyToOne
     private Language targetLanguage;
 
-    @Column
+    @Column(name = "from_feedback", columnDefinition = "varchar(255) default 'NO'")
     @Enumerated(EnumType.STRING)
     private YesNo fromFeedback = YesNo.NO;
 

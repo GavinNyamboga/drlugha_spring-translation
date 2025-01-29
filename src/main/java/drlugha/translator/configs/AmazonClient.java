@@ -144,6 +144,8 @@ public class AmazonClient {
         fileUrl = generatePresignedUrl(fileName);
         translatedSentenceEntity.setRecordedStatus(StatusTypes.recorded);
         voice.setTranslatedSentenceId(translatedSentenceId);
+        voice.setTranslatedSentence(translatedSentenceEntity);
+        voice.setBatchDetailsId(translatedSentenceEntity.getBatchDetailsId());
         voice.setFileUrl(storeFileUrl);
         voice.setDateCreated(new Date());
         voice.setDateModified(new Date());

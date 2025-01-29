@@ -932,7 +932,7 @@ public class BatchService {
                 createBatchUserAssignment(batchDetailsEntity.getRecordedById(), batchDetailsId,batchId, UserBatchRole.AUDIO_RECORDER);
 
             if (batchDetailsEntity.getAudioVerifiedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getTranslatedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_VERIFIER);
+                createBatchUserAssignment(batchDetailsEntity.getAudioVerifiedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_VERIFIER);
 
         }
         return new ResponseMessage("Successfully moved legacy table");

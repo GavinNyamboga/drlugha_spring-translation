@@ -1,5 +1,6 @@
 package drlugha.translator.system.batch.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import drlugha.translator.shared.enums.DeletionStatus;
 import lombok.*;
 import org.hibernate.annotations.SQLDelete;
@@ -21,6 +22,7 @@ public class BatchDetailsStatsEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long statsId;
 
+    @JsonIgnore
     @OneToOne
     @JoinColumn(name = "batch_details_id", referencedColumnName = "batchDetailsId", unique = true)
     private BatchDetailsEntity batchDetails;

@@ -96,6 +96,7 @@ public class Controller {
         translatedSentence.setRecordedStatus(StatusTypes.recorded);
 
         voice.setTranslatedSentence(translatedSentence);
+        voice.setBatchDetailsId(translatedSentence.getBatchDetailsId());
 //		voice.setFilepath(filepath);
         voiceRepo.save(voice);
         return ResponseEntity.ok().body("Uploaded successfully to ");
