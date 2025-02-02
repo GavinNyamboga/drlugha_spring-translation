@@ -1,5 +1,7 @@
 package drlugha.translator.system.stats.dto;
 
+import drlugha.translator.system.batch.enums.BatchStatus;
+
 public interface BatchDetailsStatsMapping {
 
     Long getBatchDetailsId();
@@ -10,7 +12,7 @@ public interface BatchDetailsStatsMapping {
 
     String getLanguage();
 
-    String getStatus();
+    Integer getStatus();
 
     Integer getNumberOfSentences();
 

@@ -4,6 +4,7 @@ import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.shared.exception.GeneralException;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.enums.BatchType;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
@@ -114,7 +115,9 @@ public class BatchDetailsStatsService {
                     batchDetailsStats.setSource(mapping.getSource());
                     batchDetailsStats.setLanguage(mapping.getLanguage());
                     batchDetailsStats.setBatchNo(mapping.getBatchNo());
-                    batchDetailsStats.setStatus(mapping.getStatus());
+                    BatchStatus batchStatus = BatchStatus.values()[mapping.getStatus()];
+                    if (batchStatus != null)
+                        batchDetailsStats.setStatus(batchStatus.getLabel(batchType));
                     batchDetailsStats.setNumberOfSentences(mapping.getNumberOfSentences());
                     batchDetailsStats.setSentencesTranslated(mapping.getSentencesTranslated());
                     batchDetailsStats.setSentencesApproved(mapping.getSentencesApproved());

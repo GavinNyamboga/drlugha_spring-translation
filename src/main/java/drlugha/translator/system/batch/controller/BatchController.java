@@ -32,6 +32,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -219,7 +220,7 @@ public class BatchController extends BaseController {
 
     private ResponseEntity<byte[]> getCompletedSentences(Long batchDetailsId) {
         // Assuming this list is obtained from your repository
-        List<SentenceItemDto> sentences = batchDetailsRepo.getAllSentencesInBatchDetails(batchDetailsId);
+        List<SentenceItemDto> sentences = batchDetailsRepo.getAllSentencesInBatchDetails(Collections.singletonList(batchDetailsId));
 
         if (sentences.isEmpty()) {
             String errorMessage = "No completed sentences found for batchDetailsId: " + batchDetailsId;
@@ -298,6 +299,13 @@ public class BatchController extends BaseController {
     @GetMapping({"batch-details/expert-reviewed"})
     public ResponseEntity getSentencesAfterExpertReview(Long batchDetailsId) {
         return batchService.getTranslatedSentences(batchDetailsId);
+    }
+
+    @CrossOrigin(exposedHeaders = "Content-Disposition")
+    @GetMapping("batch-details/download")
+    public ResponseEntity downloadAudio(@RequestParam List<Long> batchDetailsIds,
+                                        @RequestParam("excelOnly") boolean excelOnly) throws Exception {
+        return batchService.downloadBatchDetails(batchDetailsIds, excelOnly);
     }
 
     @GetMapping({"expert-reviewed-sentences"})

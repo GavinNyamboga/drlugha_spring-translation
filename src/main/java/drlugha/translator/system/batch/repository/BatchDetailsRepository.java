@@ -77,13 +77,27 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetailsEntity
             "WHERE l.language_id = :languageId AND b.batch_status >= :batchStatus", nativeQuery = true)
     List<SentenceItemDto> getAllSentencesInLanguagePerBatchDetailsStatus(Long languageId, Integer batchStatus);
 
-    @Query(value = "SELECT s.sentence_id AS sentenceId, s.sentence_text AS sentenceText, s.audio_link AS transcriptionAudioUrl, t.translated_sentence_id AS translatedSentenceId, t.translated_text AS translatedText, " +
+    @Query(value = "SELECT s.sentence_id AS sentenceId, s.sentence_text AS sentenceText, s.audio_link AS transcriptionAudioUrl," +
+            " t.translated_sentence_id AS translatedSentenceId, t.translated_text AS translatedText, " +
+            " b.batch_details_id AS batchDetailsId, " +
             "(SELECT v.file_url FROM voice v WHERE v.translated_sentence_id = t.translated_sentence_id ORDER BY v.voice_id DESC LIMIT 1) AS audioUrl  " +
             "FROM translated_sentence t " +
             "CROSS JOIN sentences s ON s.sentence_id = t.sentence_id " +
             "CROSS JOIN batch_details b on b.batch_details_id = t.batch_details_id " +
-            "WHERE b.batch_details_id = :batchDetailsId", nativeQuery = true)
-    List<SentenceItemDto> getAllSentencesInBatchDetails(Long batchDetailsId);
+            "WHERE b.batch_details_id in :batchDetailsIds and t.deletion_status=0 and s.deletion_status=0 and b.deletion_status=0", nativeQuery = true)
+    List<SentenceItemDto> getAllSentencesInBatchDetails(@Param("batchDetailsIds") List<Long> batchDetailsIds);
+
+    @Query(value = "SELECT s.sentence_id AS sentenceId, s.sentence_text AS sentenceText, s.audio_link AS transcriptionAudioUrl, " +
+            "             t.translated_sentence_id AS translatedSentenceId, t.translated_text AS translatedText,  " +
+            "             b.batch_details_id AS batchDetailsId,u.username as recordedByUsername," +
+            "             v.user_id as recordedByUserId, v.file_url as audioUrl" +
+            "            FROM translated_sentence t  " +
+            "            CROSS JOIN sentences s ON s.sentence_id = t.sentence_id  " +
+            "            CROSS JOIN batch_details b on b.batch_details_id = t.batch_details_id" +
+            "            left join voice v on v.translated_sentence_id=t.translated_sentence_id " +
+            "            left join users u on v.user_id = u.user_id" +
+            "            WHERE b.batch_details_id in :batchDetailsIds and t.deletion_status=0 and s.deletion_status=0 and b.deletion_status=0", nativeQuery = true)
+    List<SentenceItemDto> getAllSentencesInBatchDetailsV2(@Param("batchDetailsIds") List<Long> batchDetailsIds);
 
     @Query(value = "SELECT s.sentence_id AS sentenceId, " +
             "s.sentence_text AS sentenceText, " +

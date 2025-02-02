@@ -5,10 +5,16 @@ import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.voice.model.VoiceEntity;
 import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Data
 @AllArgsConstructor
+@NoArgsConstructor
 public class CompletedSentenceItemDto {
+    private Long batchDetailsId;
     private Long sentenceId;
     private String sentenceText;
     private Long translatedSentenceId;
@@ -16,6 +22,7 @@ public class CompletedSentenceItemDto {
     private String audioUrl;
     private String transcriptionAudioUrl;
     private UserDetailDTO recordedBy;
+    private List<UserDetailDTO> audioDetails = new ArrayList<>();
 
     public CompletedSentenceItemDto(VoiceEntity voice, UserDetailDTO recordedBy) {
         this.sentenceId = voice.getTranslatedSentence().getSentenceId();
@@ -34,6 +41,7 @@ public class CompletedSentenceItemDto {
         this.audioUrl = sentenceItemDto.getAudioUrl();
         this.transcriptionAudioUrl = sentenceItemDto.getTranscriptionAudioUrl();
         this.recordedBy = recordedBy;
+        this.batchDetailsId = sentenceItemDto.getBatchDetailsId();
     }
 
     public CompletedSentenceItemDto(TranslatedSentenceEntity entity, UserDetailDTO recordedBy) {

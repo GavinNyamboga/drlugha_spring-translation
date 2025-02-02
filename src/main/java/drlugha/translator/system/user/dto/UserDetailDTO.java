@@ -13,6 +13,7 @@ import lombok.Setter;
 public class UserDetailDTO {
 
     private Long userId;
+    private Long translatedSentenceId;
     private String username;
     private String email;
     private Long voiceId;

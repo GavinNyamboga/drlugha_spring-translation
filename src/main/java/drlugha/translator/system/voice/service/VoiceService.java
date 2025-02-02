@@ -217,7 +217,7 @@ public class VoiceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedAudioVerifier) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_AUDIO_VERIFIER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();
@@ -245,7 +245,7 @@ public class VoiceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedAudioVerifier) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_AUDIO_VERIFIER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();

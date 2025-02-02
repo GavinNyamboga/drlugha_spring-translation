@@ -28,10 +28,10 @@ public class BatchInfoItemDTO {
         batchDescription = batchDetailsEntity.getBatch().getDescription();
         batchLink = batchDetailsEntity.getBatch().getLinkUrl();
         language = batchDetailsEntity.getLanguage().getName();
-        translated = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.assignedTranslator.ordinal();
-        reviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.assignedTextVerifier.ordinal();
-        expertReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.assignedExpertReviewer.ordinal();
-        audioRecorded = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.assignedRecorder.ordinal();
-        audioReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.assignedAudioVerifier.ordinal();
+        translated = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_TRANSLATOR.ordinal();
+        reviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_TEXT_VERIFIER.ordinal();
+        expertReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_EXPERT_REVIEWER.ordinal();
+        audioRecorded = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_RECORDER.ordinal();
+        audioReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_AUDIO_VERIFIER.ordinal();
     }
 }

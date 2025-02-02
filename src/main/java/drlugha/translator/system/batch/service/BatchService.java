@@ -6,6 +6,7 @@ import drlugha.translator.shared.enums.DeletionStatus;
 import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.shared.exception.BadRequestException;
+import drlugha.translator.shared.exception.GeneralException;
 import drlugha.translator.system.batch.dto.*;
 import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.enums.BatchType;
@@ -37,16 +38,32 @@ import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.system.voice.repository.VoiceRepository;
 import drlugha.translator.system.voice.service.VoiceService;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.text.SimpleDateFormat;
 import java.util.*;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.zip.Deflater;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @Slf4j
 @Service
@@ -81,6 +98,8 @@ public class BatchService {
     private final BatchDetailsUserAssigmentRepo batchDetailsUserAssigmentRepo;
 
     CreatePrefixedBatchDTO prefixedBatchDto;
+
+    private final ExecutorService downloadExecutor = Executors.newFixedThreadPool(10);
 
     public BatchService(BatchRepository batchRepo, BatchDetailsRepository batchDetailsRepo,
                         SentenceService sentenceService, SentenceRepository sentenceRepository,
@@ -171,7 +190,7 @@ public class BatchService {
         batchDetails.setTranslatedBy(user.get());
         batchDetails.setLanguage(optionalLanguageEntity.get());
         batchDetails.setBatchId(batchEntity.getBatchNo());
-        batchDetails.setBatchStatus(BatchStatus.assignedTranslator);
+        batchDetails.setBatchStatus(BatchStatus.ASSIGNED_TRANSLATOR);
         batchDetails = this.batchDetailsRepo.save(batchDetails);
 
         //create a record on the new table
@@ -208,7 +227,7 @@ public class BatchService {
         BatchDetailsEntity batchDetails1 = this.batchDetailsRepo.findById(batchDetailsId).get();
         if (Objects.nonNull(batchDetails.getTranslationVerifiedById()))
             batchDetails1.setTranslationVerifiedById(batchDetails.getTranslationVerifiedById());
-        batchDetails1.setBatchStatus(BatchStatus.assignedTextVerifier);
+        batchDetails1.setBatchStatus(BatchStatus.ASSIGNED_TEXT_VERIFIER);
         return this.batchDetailsRepo.save(batchDetails1);
     }
 
@@ -246,7 +265,7 @@ public class BatchService {
         this.translatedSentenceRepo.assignSentencesToExpertReviewer(translatedSentencesToReviewIds);
         if (Objects.nonNull(batchDetails.getSecondReviewerId()))
             batchDetails1.setSecondReviewerId(batchDetails.getSecondReviewerId());
-        batchDetails1.setBatchStatus(BatchStatus.assignedExpertReviewer);
+        batchDetails1.setBatchStatus(BatchStatus.ASSIGNED_EXPERT_REVIEWER);
         return this.batchDetailsRepo.save(batchDetails1);
     }
 
@@ -260,7 +279,7 @@ public class BatchService {
         if (batchDetailsEntity.getBatch().getBatchType() == BatchType.AUDIO)
             return ResponseEntity.badRequest().body(new ResponseMessage("Audio batches cannot be assigned a recorder"));
         batchDetailsEntity.setRecordedById(batchDetails.getRecordedById());
-        batchDetailsEntity.setBatchStatus(BatchStatus.assignedRecorder);
+        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_RECORDER);
         return ResponseEntity.ok().body(this.batchDetailsRepo.save(batchDetailsEntity));
     }
 
@@ -274,7 +293,7 @@ public class BatchService {
         if (batchDetailsEntity.getBatch().getBatchType() == BatchType.AUDIO)
             return ResponseEntity.badRequest().body(new ResponseMessage("Audio batches cannot be assigned an audio verifier"));
         batchDetailsEntity.setAudioVerifiedById(batchDetails.getAudioVerifiedById());
-        batchDetailsEntity.setBatchStatus(BatchStatus.assignedAudioVerifier);
+        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
         return ResponseEntity.ok().body(this.batchDetailsRepo.save(batchDetailsEntity));
     }
 
@@ -480,21 +499,49 @@ public class BatchService {
         logger.info("Batch details found for id: {}. BatchType: {}", batchDetailsId, batchType);
 
         // Retrieve sentences with presigned audio URL
-        List<SentenceItemDto> sentenceItems = batchDetailsRepo.getAllSentencesInBatchDetails(batchDetailsId);
+        List<SentenceItemDto> sentenceItems = batchDetailsRepo.getAllSentencesInBatchDetailsV2(Collections.singletonList(batchDetailsId));
         logger.info("Number of sentence items retrieved: {}", sentenceItems.size());
 
-        List<CompletedSentenceItemDto> sentences = getSentencesWithPresignedAudioUrl(sentenceItems);
-        logger.info("Number of completed sentences with presigned audio URL: {}", sentences.size());
+        //List<CompletedSentenceItemDto> sentences = getSentencesWithPresignedAudioUrl(sentenceItems);
+        //logger.info("Number of completed sentences with presigned audio URL: {}", sentences.size());
 
-        // Add recordedBy information to each CompletedSentenceItemDto
-        for (CompletedSentenceItemDto sentence : sentences) {
+        Map<Long, CompletedSentenceItemDto> completedSentenceItemDtoMap = new HashMap<>();
+
+        for (SentenceItemDto sentence : sentenceItems) {
+            CompletedSentenceItemDto completedSentenceItemDto = completedSentenceItemDtoMap.computeIfAbsent(
+                    sentence.getTranslatedSentenceId(),
+                    id -> {
+                        CompletedSentenceItemDto dto = new CompletedSentenceItemDto();
+                        dto.setTranslatedSentenceId(id);
+                        dto.setSentenceId(sentence.getSentenceId());
+                        dto.setSentenceText(sentence.getSentenceText());
+                        dto.setTranslatedText(sentence.getTranslatedText());
+                        dto.setTranscriptionAudioUrl(sentence.getTranscriptionAudioUrl());
+                        dto.setBatchDetailsId(sentence.getBatchDetailsId());
+                        dto.setAudioDetails(new ArrayList<>()); // Initialize the list
+                        return dto;
+                    }
+            );
+            if (sentence.getAudioUrl() != null) {
+                UserDetailDTO userDetailDTO = new UserDetailDTO();
+                userDetailDTO.setFileUrl(sentence.getAudioUrl());
+                userDetailDTO.setUsername(sentence.getRecordedByUsername());
+                userDetailDTO.setUserId(sentence.getRecordedByUserId());
+                completedSentenceItemDto.getAudioDetails().add(userDetailDTO);
+            }
+
+        }
+
+        List<CompletedSentenceItemDto> sentences = new ArrayList<>(completedSentenceItemDtoMap.values());
+        /*for (CompletedSentenceItemDto sentence : sentences) {
             logger.info("Adding recordedBy info for sentence with translatedSentenceId: {}", sentence.getTranslatedSentenceId());
-            UserDetailDTO recordedBy = getVoiceDetailsByTranslatedSentenceId(sentence.getTranslatedSentenceId());
+            List<UserDetailDTO> recordedBy = getVoiceDetailsByTranslatedSentenceId(List.of(sentence.getTranslatedSentenceId()));
             if (recordedBy == null) {
                 logger.warn("recordedBy is null for translatedSentenceId: {}", sentence.getTranslatedSentenceId());
             }
-            sentence.setRecordedBy(recordedBy);
-        }
+            UserDetailDTO userDetailDTO = recordedBy != null && !recordedBy.isEmpty() ? recordedBy.get(0) : null;
+            sentence.setRecordedBy(userDetailDTO);
+        }*/
 
         CompletedSentencesDto completedSentencesDto = new CompletedSentencesDto();
         completedSentencesDto.setBatchDetailsId(batchDetailsId);
@@ -509,33 +556,361 @@ public class BatchService {
         return ResponseEntity.ok(completedSentencesDto);
     }
 
-    public UserDetailDTO getVoiceDetailsByTranslatedSentenceId(Long translatedSentenceId) {
-        System.out.println("Entering getVoiceDetailsByTranslatedSentenceId with translatedSentenceId: " + translatedSentenceId);
+    public ResponseEntity<?> downloadBatchDetails(List<Long> batchDetailsIds, boolean excelOnly) throws Exception {
+        Logger logger = LoggerFactory.getLogger(BatchService.class);
 
-        List<Object[]> result = translatedSentenceRepository.fetchVoiceDetailsByTranslatedSentenceId(translatedSentenceId);
+        // Input validation
+        if (batchDetailsIds == null) {
+            logger.error("Batch details ids is null");
+            return ResponseEntity.badRequest().body(new ResponseMessage("Please provide batch details id"));
+        }
+
+        List<BatchDetailsEntity> batchDetailsEntities = batchDetailsRepo.findAllById(batchDetailsIds);
+        if (batchDetailsEntities.isEmpty()) {
+            throw new BadRequestException("Batch details not found");
+        }
+
+        Map<Long, BatchDetailsEntity> batchDetailsEntityMap = batchDetailsEntities.stream()
+                .collect(Collectors.toMap(BatchDetailsEntity::getBatchDetailsId, batchDetailsEntity -> batchDetailsEntity));
+
+        // Parallel processing for data retrieval
+        CompletableFuture<List<CompletedSentenceItemDto>> sentencesFuture = CompletableFuture.supplyAsync(() -> {
+            List<SentenceItemDto> sentenceItems = batchDetailsRepo.getAllSentencesInBatchDetailsV2(batchDetailsIds);
+            logger.info("Number of sentence items retrieved: {}", sentenceItems.size());
+
+            Map<Long, CompletedSentenceItemDto> completedSentenceItemDtoMap = new HashMap<>();
+
+            for (SentenceItemDto sentence : sentenceItems) {
+                CompletedSentenceItemDto completedSentenceItemDto = completedSentenceItemDtoMap.computeIfAbsent(
+                        sentence.getTranslatedSentenceId(),
+                        id -> {
+                            CompletedSentenceItemDto dto = new CompletedSentenceItemDto();
+                            dto.setTranslatedSentenceId(id);
+                            dto.setSentenceId(sentence.getSentenceId());
+                            dto.setSentenceText(sentence.getSentenceText());
+                            dto.setTranslatedText(sentence.getTranslatedText());
+                            dto.setTranscriptionAudioUrl(sentence.getTranscriptionAudioUrl());
+                            dto.setBatchDetailsId(sentence.getBatchDetailsId());
+                            dto.setAudioDetails(new ArrayList<>()); // Initialize the list
+                            return dto;
+                        }
+                );
+
+                if (sentence.getAudioUrl() != null) {
+                    UserDetailDTO userDetailDTO = new UserDetailDTO();
+                    userDetailDTO.setFileUrl(sentence.getAudioUrl());
+                    userDetailDTO.setUsername(sentence.getRecordedByUsername());
+                    userDetailDTO.setUserId(sentence.getRecordedByUserId());
+                    completedSentenceItemDto.getAudioDetails().add(userDetailDTO);
+                }
+            }
+
+            return new ArrayList<>(completedSentenceItemDtoMap.values());
+        });
+
+        //After fetching sentences, group them by batchId
+        CompletableFuture<Map<Long, List<CompletedSentenceItemDto>>> batchSentencesFuture = sentencesFuture
+                .thenApplyAsync(sentences ->
+                        sentences.stream().collect(Collectors.groupingBy(CompletedSentenceItemDto::getBatchDetailsId))
+                );
+
+        //use the batched completed sentence item dtos, to group by user
+        Map<Long, List<CompletedSentenceItemDto>> batchDetailSentencesMap = batchSentencesFuture.get(30, TimeUnit.SECONDS);
+
+        Map<String, List<ByteArrayResource>> batchDetailsResources = new HashMap<>();
+
+        for (Map.Entry<Long, List<CompletedSentenceItemDto>> entry : batchDetailSentencesMap.entrySet()) {
+            BatchDetailsEntity batchDetailsEntity = batchDetailsEntityMap.get(entry.getKey());
+            String language = batchDetailsEntity.getLanguage().getName();
+
+            List<CompletedSentenceItemDto> sentences = entry.getValue();
+            //we can generate Excel at this point
+            byte[] excelByteArray = generateExcel(sentences);
+            String excelName = "Batch_" + entry.getKey() + "_" + language + "_sentences.xlsx";
+
+            if (excelOnly) {
+                ByteArrayResource excelResource = new ByteArrayResource(excelByteArray);
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=" + excelName)
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .contentLength(excelResource.contentLength())
+                        .body(excelResource);
+            }
+
+            List<UserDetailDTO> recordedByDetails = sentences.stream()
+                    .flatMap(dto -> dto.getAudioDetails().stream())
+                    .distinct()
+                    .collect(Collectors.toList());
+
+            Map<String, List<UserDetailDTO>> userVoiceMap = recordedByDetails.stream().collect(Collectors.groupingBy(UserDetailDTO::getUsername));
+
+            try {
+
+                ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                ZipOutputStream zos = new ZipOutputStream(baos);
+                zos.setLevel(Deflater.BEST_SPEED);
+
+                // Synchronization object for thread-safe ZIP writing
+                Object zipLock = new Object();
+
+                // Add Excel file to the root of ZIP
+                synchronized (zipLock) {
+                    ZipEntry excelEntry = new ZipEntry(excelName);
+                    zos.putNextEntry(excelEntry);
+                    zos.write(excelByteArray);
+                    zos.closeEntry();
+                }
+
+                // Process downloads in parallel
+                List<CompletableFuture<Void>> downloadFutures = new ArrayList<>();
+                AtomicInteger totalProcessed = new AtomicInteger(0);
+
+                for (Map.Entry<String, List<UserDetailDTO>> voiceEntry : userVoiceMap.entrySet()) {
+                    String username = voiceEntry.getKey();
+                    List<UserDetailDTO> userAudios = voiceEntry.getValue();
+
+                    log.info("USER {} HAS {} audios", username, userAudios.size());
+
+                    for (UserDetailDTO audio : userAudios) {
+                        CompletableFuture<Void> downloadFuture = CompletableFuture.runAsync(() -> {
+                            try {
+                                // Download and add to ZIP
+                                downloadAndAddToZip(username, audio, zos, zipLock, totalProcessed);
+                            } catch (Exception e) {
+                                logger.error("Error processing audio for user {}: {}", username, e.getMessage());
+                                //throw new CompletionException(e);
+                            }
+                        }, downloadExecutor);
+
+                        downloadFutures.add(downloadFuture);
+                    }
+                }
+
+                // Wait for all downloads to complete with timeout
+                CompletableFuture.allOf(downloadFutures.toArray(new CompletableFuture[0]))
+                        .get(5, TimeUnit.MINUTES);
+
+                synchronized (zipLock) {
+                    zos.close();
+                }
+
+                ByteArrayResource resource = new ByteArrayResource(baos.toByteArray());
+                // we can have the name as the key
+                String key = "Batch_" + entry.getKey() + "_" + language + ".zip";
+                batchDetailsResources.computeIfAbsent(key, k -> new ArrayList<>()).add(resource);
+
+            } catch (TimeoutException e) {
+                throw new GeneralException("Download operation timed out", e);
+            } catch (Exception e) {
+                log.error(e.getMessage(), e);
+                throw new GeneralException("Failed to create zip file", e);
+            } finally {
+                // Don't shut down the executor as it's a shared resource
+            }
+        }
+        if (batchDetailsResources.isEmpty()) {
+            throw new BadRequestException("Could not generate zip files");
+        }
+
+        //if batch is 1, return the zip as is
+        if (batchDetailsResources.size() == 1) {
+            Map.Entry<String, List<ByteArrayResource>> entry = batchDetailsResources.entrySet().iterator().next();
+            ByteArrayResource resource = entry.getValue().get(0);
+
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.CONTENT_DISPOSITION,
+                            "attachment; filename=" + entry.getKey())
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .contentLength(resource.contentLength())
+                    .body(resource);
+        } else {
+
+            // If multiple batches, create a parent zip
+            try (ByteArrayOutputStream finalBaos = new ByteArrayOutputStream();
+                 ZipOutputStream finalZos = new ZipOutputStream(finalBaos)) {
+
+                finalZos.setLevel(Deflater.BEST_SPEED);
+
+                // Add each batch zip to the parent zip
+                for (Map.Entry<String, List<ByteArrayResource>> entry : batchDetailsResources.entrySet()) {
+                    String batchFileName = entry.getKey();
+                    List<ByteArrayResource> resources = entry.getValue();
+
+                    for (ByteArrayResource resource : resources) {
+                        ZipEntry zipEntry = new ZipEntry(batchFileName);
+                        finalZos.putNextEntry(zipEntry);
+                        finalZos.write(resource.getByteArray());
+                        finalZos.closeEntry();
+                    }
+                }
+
+                finalZos.finish();
+
+                ByteArrayResource finalResource = new ByteArrayResource(finalBaos.toByteArray());
+                String timestamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
+
+                return ResponseEntity.ok()
+                        .header(HttpHeaders.CONTENT_DISPOSITION,
+                                "attachment; filename=" + batchDetailsIds.size() + "_batches_" + timestamp + ".zip")
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .contentLength(finalResource.contentLength())
+                        .body(finalResource);
+            } catch (IOException e) {
+                throw new GeneralException("Failed to create zip file", e);
+            }
+        }
+    }
+
+    private void downloadAndAddToZip(String username, UserDetailDTO audio, ZipOutputStream zos,
+                                     Object zipLock, AtomicInteger counter) throws IOException {
+        URL url = new URL(audio.getFileUrl());
+        HttpURLConnection connection = (HttpURLConnection) url.openConnection();
+        connection.setConnectTimeout(5000);
+        connection.setReadTimeout(30000);
+
+        String filename = url.getPath().substring(url.getPath().lastIndexOf('/') + 1);
+
+        // Use buffered streams for better performance
+        try (BufferedInputStream bis = new BufferedInputStream(connection.getInputStream())) {
+            byte[] buffer = new byte[8192];
+            ByteArrayOutputStream audioData = new ByteArrayOutputStream();
+
+            int bytesRead;
+            while ((bytesRead = bis.read(buffer)) != -1) {
+                audioData.write(buffer, 0, bytesRead);
+            }
+
+            // Synchronized block for thread-safe ZIP writing
+            synchronized (zipLock) {
+                ZipEntry zipEntry = new ZipEntry(username + "/" + filename);
+                zos.putNextEntry(zipEntry);
+                audioData.writeTo(zos);
+                zos.closeEntry();
+
+                int processed = counter.incrementAndGet();
+                log.info("Processed {}: {}", processed, filename);
+            }
+        }
+    }
+
+    public byte[] generateExcel(List<CompletedSentenceItemDto> batchDetailsList) throws IOException {
+        if (batchDetailsList == null || batchDetailsList.isEmpty()) {
+            throw new IllegalArgumentException("BatchDetails list cannot be null or empty");
+        }
+
+        try (ByteArrayOutputStream outputStream = new ByteArrayOutputStream(); Workbook workbook = new XSSFWorkbook()) {
+            Sheet sheet = workbook.createSheet("Sentence Translations");
+
+            // Find the maximum number of audio details across all sentences
+            int maxAudioDetails = batchDetailsList.stream()
+                    .mapToInt(details -> details.getAudioDetails().size())
+                    .max()
+                    .orElse(0);
+
+            // Create dynamic headers based on max audio details
+            String[] baseHeaders = {"#", "Sentence", "Translated Sentence", "No of Audios"};
+            String[] headers = new String[baseHeaders.length + (maxAudioDetails * 2)];
+            System.arraycopy(baseHeaders, 0, headers, 0, baseHeaders.length);
+
+            // Add dynamic audio headers
+            for (int i = 0; i < maxAudioDetails; i++) {
+                headers[baseHeaders.length + (i * 2)] = "Audio-" + (i + 1) + "-Url";
+                headers[baseHeaders.length + (i * 2) + 1] = "Audio-" + (i + 1) + "-Recorded-By";
+            }
+
+            // Create header row
+            Row headerRow = sheet.createRow(0);
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+
+            // Create header cells
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+
+            // Populate data rows
+            AtomicInteger rowNum = new AtomicInteger(1);
+            batchDetailsList.forEach(batchDetails -> {
+                Row row = sheet.createRow(rowNum.getAndIncrement());
+
+                // Serial number
+                row.createCell(0).setCellValue(rowNum.get() - 1);
+
+                // Sentence
+                row.createCell(1).setCellValue(batchDetails.getSentenceText());
+
+                // Translated sentence
+                row.createCell(2).setCellValue(batchDetails.getTranslatedText());
+
+                // Handle audio details dynamically
+                List<UserDetailDTO> audioDetails = batchDetails.getAudioDetails();
+
+                //add audio count
+                row.createCell(3).setCellValue(audioDetails.size());
+
+                for (int i = 0; i < audioDetails.size(); i++) {
+                    UserDetailDTO audio = audioDetails.get(i);
+                    // Audio URL cell
+                    row.createCell(baseHeaders.length + (i * 2))
+                            .setCellValue(audio.getFileUrl());
+                    // Username cell
+                    row.createCell(baseHeaders.length + (i * 2) + 1)
+                            .setCellValue(audio.getUsername());
+                }
+            });
+
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            workbook.write(byteArrayOutputStream);
+
+            return byteArrayOutputStream.toByteArray();
+        } catch (IOException e) {
+            throw new IOException("Failed to generate Excel file", e);
+        }
+    }
+
+    public List<UserDetailDTO> getVoiceDetailsByTranslatedSentenceId(List<Long> translatedSentenceIds) {
+        log.info("Entering getVoiceDetailsByTranslatedSentenceId with translatedSentenceIds: {}", translatedSentenceIds);
+
+        List<Object[]> result = translatedSentenceRepository.fetchVoiceDetailsByTranslatedSentenceId(translatedSentenceIds);
 
         if (result == null || result.isEmpty()) {
-            System.out.println("No voice details found for translatedSentenceId: " + translatedSentenceId);
-            return null;
+            log.info("No voice details found for translatedSentenceId: {}", translatedSentenceIds);
+            return Collections.emptyList();
         }
 
-        Object[] row = result.get(0);
-        if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
-            System.out.println("Invalid data in voice details for translatedSentenceId: " + translatedSentenceId);
-            return null;
+        List<UserDetailDTO> userDetailDtos = new ArrayList<>();
+        for (Object[] row : result) {
+            if (row == null || row.length < 2 || row[0] == null || row[1] == null) {
+                log.info("Invalid data in voice details for translatedSentenceId: {}", translatedSentenceIds);
+                return Collections.emptyList();
+            }
+
+            String fileUrl = (String) row[0];
+            Long userId = ((Number) row[1]).longValue();
+            String username = (String) row[2];
+            Long translatedSentenceId = ((Number) row[3]).longValue();
+
+            log.info("fileUrl: {} -- userID: {} -- Username:{}", fileUrl, userId, username);
+
+            UserDetailDTO userDetailDto = new UserDetailDTO();
+            userDetailDto.setUserId(userId);
+            userDetailDto.setUsername(username);
+            userDetailDto.setFileUrl(fileUrl);
+            userDetailDto.setTranslatedSentenceId(translatedSentenceId);
+            userDetailDtos.add(userDetailDto);
         }
 
-        String fileUrl = (String) row[0];
-        Long userId = ((Number) row[1]).longValue();
 
-        System.out.println("fileUrl: " + fileUrl);
-        System.out.println("userId: " + userId);
-
-        UserDetailDTO userDetailDto = new UserDetailDTO();
-        userDetailDto.setUserId(userId);
-        userDetailDto.setFileUrl(fileUrl);
-
-        return userDetailDto;
+        return userDetailDtos;
     }
 
     private List<TranslatedSentenceItemDto> getTranslatedSentenceItemDtos(List<TranslatedSentenceEntity> translatedSentences, Boolean isFirstReviewed, Boolean isExpertReviewed) {
@@ -566,8 +941,8 @@ public class BatchService {
         BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
         if (batchDetails == null)
             return ResponseEntity.internalServerError().body(new ResponseMessage("An error occured"));
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.translated.ordinal()) {
-            batchDetails.setBatchStatus(BatchStatus.translated);
+        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.TRANSLATED.ordinal()) {
+            batchDetails.setBatchStatus(BatchStatus.TRANSLATED);
             this.batchDetailsRepo.save(batchDetails);
         }
         return ResponseEntity.ok(new ResponseMessage("Translations marked as complete"));
@@ -582,12 +957,12 @@ public class BatchService {
         BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
         if (batchDetails == null)
             return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.translationVerified.ordinal()) {
+        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.TRANSLATION_VERIFIED.ordinal()) {
             Optional<BatchDetailsStatsEntity> optionalTranslatorStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
             if (optionalTranslatorStats.isPresent()) {
                 Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.rejected);
                 if (rejectedSentences <= 0) {
-                    batchDetails.setBatchStatus(BatchStatus.translationVerified);
+                    batchDetails.setBatchStatus(BatchStatus.TRANSLATION_VERIFIED);
                     this.batchDetailsRepo.save(batchDetails);
                 }
             }
@@ -606,7 +981,7 @@ public class BatchService {
             BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
             if (batchDetails == null)
                 return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
-            if (batchDetails.getBatchStatus().ordinal() < BatchStatus.translationVerified.ordinal() && batchDetails.getBatchStatus().ordinal() >= BatchStatus.translated.ordinal()) {
+            if (batchDetails.getBatchStatus().ordinal() < BatchStatus.TRANSLATION_VERIFIED.ordinal() && batchDetails.getBatchStatus().ordinal() >= BatchStatus.TRANSLATED.ordinal()) {
                 Optional<BatchDetailsStatsEntity> optionalTranslatorStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
                 if (optionalTranslatorStats.isPresent()) {
                     Integer approvedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.approved);
@@ -628,12 +1003,12 @@ public class BatchService {
         BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
         if (batchDetails == null)
             return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.secondVerificationDone.ordinal()) {
+        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.SECOND_VERIFICATION_DONE.ordinal()) {
             Optional<BatchDetailsStatsEntity> optionalUsersStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
             if (optionalUsersStats.isPresent()) {
                 Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndSecondReview(batchDetailsId, StatusTypes.rejected);
                 if (rejectedSentences <= 0) {
-                    batchDetails.setBatchStatus(BatchStatus.secondVerificationDone);
+                    batchDetails.setBatchStatus(BatchStatus.SECOND_VERIFICATION_DONE);
                     this.batchDetailsRepo.save(batchDetails);
                 }
             }
@@ -666,10 +1041,10 @@ public class BatchService {
             }
         }
 
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.recorded.ordinal()) {
+        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.RECORDED.ordinal()) {
             List<TranslatedSentenceEntity> voiceTasks = this.voiceService.findVoiceTasks(batchDetailsId);
             if (voiceTasks.isEmpty()) {
-                batchDetails.setBatchStatus(BatchStatus.recorded);
+                batchDetails.setBatchStatus(BatchStatus.RECORDED);
                 this.batchDetailsRepo.save(batchDetails);
                 return ResponseEntity.ok().build();
             }
@@ -686,8 +1061,8 @@ public class BatchService {
         BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
         if (batchDetails == null)
             return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.audioVerified.ordinal()) {
-            batchDetails.setBatchStatus(BatchStatus.audioVerified);
+        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.AUDIO_VERIFIED.ordinal()) {
+            batchDetails.setBatchStatus(BatchStatus.AUDIO_VERIFIED);
             this.batchDetailsRepo.save(batchDetails);
         }
         return ResponseEntity.ok(new ResponseMessage("Audios marked as verified"));
@@ -726,23 +1101,25 @@ public class BatchService {
         Optional<Language> language = this.languageRepository.findById(languageId);
         if (language.isEmpty())
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(new ResponseMessage("Language Id not found"));
-        List<CompletedSentenceItemDto> expertReviewedSentences = getSentencesWithPresignedAudioUrl(this.batchDetailsRepo.getAllSentencesInLanguagePerBatchDetailsStatus(languageId, BatchStatus.secondVerificationDone.ordinal()));
+        List<CompletedSentenceItemDto> expertReviewedSentences = getSentencesWithPresignedAudioUrl(this.batchDetailsRepo.getAllSentencesInLanguagePerBatchDetailsStatus(languageId, BatchStatus.SECOND_VERIFICATION_DONE.ordinal()));
         return ResponseEntity.ok().body(new ExpertReviewedSentencesDto(language
                 .get().getName(), expertReviewedSentences));
     }
 
     public List<CompletedSentenceItemDto> getSentencesWithPresignedAudioUrl(List<SentenceItemDto> sentences) {
         return sentences.stream().map(sentenceItemDto -> {
-            System.out.println("Processing sentenceItem with translatedSentenceId: " + sentenceItemDto.getTranslatedSentenceId());
+            log.info("Processing sentenceItem with translatedSentenceId: {}", sentenceItemDto.getTranslatedSentenceId());
 
             // Fetch the recordedBy information
-            UserDetailDTO recordedBy = getVoiceDetailsByTranslatedSentenceId(sentenceItemDto.getTranslatedSentenceId());
+            List<UserDetailDTO> recordedBy = getVoiceDetailsByTranslatedSentenceId(List.of(sentenceItemDto.getTranslatedSentenceId()));
             if (recordedBy == null) {
-                System.out.println("recordedBy is null for translatedSentenceId: " + sentenceItemDto.getTranslatedSentenceId());
+                log.info("recordedBy is null for translatedSentenceId: {}", sentenceItemDto.getTranslatedSentenceId());
             }
 
+            UserDetailDTO userDetailDTO = recordedBy != null && !recordedBy.isEmpty() ? recordedBy.get(0) : null;
+
             // Create the CompletedSentenceItemDto
-            CompletedSentenceItemDto completedSentence = new CompletedSentenceItemDto(sentenceItemDto, recordedBy);
+            CompletedSentenceItemDto completedSentence = new CompletedSentenceItemDto(sentenceItemDto, userDetailDTO);
 
             // Generate presigned URLs for audio files
             if (completedSentence.getAudioUrl() != null) {
@@ -838,7 +1215,7 @@ public class BatchService {
         if (batchDetailsEntity == null) {
             batchDetailsEntity = new BatchDetailsEntity();
             batchDetailsEntity.setBatchId(batch.getBatchNo());
-            batchDetailsEntity.setBatchStatus(BatchStatus.translated);
+            batchDetailsEntity.setBatchStatus(BatchStatus.TRANSLATED);
             batchDetailsEntity.setLanguage(targetLanguage);
             batchDetailsEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
             batchDetailsEntity = batchDetailsRepo.save(batchDetailsEntity);
@@ -899,19 +1276,19 @@ public class BatchService {
                 switch (role) {
                     case TEXT_TRANSLATOR:
                         batchDetailsEntity.setTranslatedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.assignedTranslator);
+                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TRANSLATOR);
                         break;
                     case TEXT_VERIFIER:
                         batchDetailsEntity.setTranslationVerifiedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.assignedTextVerifier);
+                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TEXT_VERIFIER);
                         break;
                     case EXPERT_TEXT_REVIEWER:
                         batchDetailsEntity.setSecondReviewerId(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.assignedRecorder);
+                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_RECORDER);
                         break;
                     case AUDIO_VERIFIER:
                         batchDetailsEntity.setAudioVerifiedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.assignedAudioVerifier);
+                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
                         break;
                     /*case EXPERT_TEXT_REVIEWER:
                          batchDetailsEntity.*/
@@ -945,7 +1322,7 @@ public class BatchService {
                 createBatchUserAssignment(batchDetailsEntity.getSecondReviewerId(), batchDetailsId, batchId, UserBatchRole.EXPERT_TEXT_REVIEWER);
 
             if (batchDetailsEntity.getRecordedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getRecordedById(), batchDetailsId,batchId, UserBatchRole.AUDIO_RECORDER);
+                createBatchUserAssignment(batchDetailsEntity.getRecordedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_RECORDER);
 
             if (batchDetailsEntity.getAudioVerifiedById() != null)
                 createBatchUserAssignment(batchDetailsEntity.getAudioVerifiedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_VERIFIER);

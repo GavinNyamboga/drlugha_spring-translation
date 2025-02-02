@@ -184,7 +184,7 @@ public class TranslatedSentenceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(updatedSentence.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedTextVerifier) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();
@@ -237,7 +237,7 @@ public class TranslatedSentenceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedTextVerifier) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();
@@ -280,7 +280,7 @@ public class TranslatedSentenceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedExpertReviewer) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_EXPERT_REVIEWER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();
@@ -336,7 +336,7 @@ public class TranslatedSentenceService {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedExpertReviewer) { //Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_EXPERT_REVIEWER) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();

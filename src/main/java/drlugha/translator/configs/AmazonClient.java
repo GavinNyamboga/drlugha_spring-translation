@@ -160,7 +160,7 @@ public class AmazonClient {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepository.findById(translatedSentenceEntity.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.assignedRecorder) { // Update user stats
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_RECORDER) { // Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
                     BatchDetailsStatsEntity userStats = optionalUserStats.get();

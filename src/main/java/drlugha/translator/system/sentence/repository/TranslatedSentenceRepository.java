@@ -1,10 +1,10 @@
 package drlugha.translator.system.sentence.repository;
 
-import drlugha.translator.system.stats.dto.BatchDetailsStatsDto;
+import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.system.language.model.Language;
 import drlugha.translator.system.sentence.model.Sentence;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
-import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.system.stats.dto.BatchDetailsStatsDto;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
@@ -40,13 +40,12 @@ public interface TranslatedSentenceRepository extends JpaRepository<TranslatedSe
             @Param("batchDetailsId") Long batchDetailsId
     );
 
-    @Query(value = "SELECT v.file_url, v.user_id " +
+    @Query(value = "SELECT v.file_url, v.user_id,u.username,v.translated_sentence_id " +
             "FROM voice v " +
-            "WHERE v.translated_sentence_id = :translatedSentenceId " +
-            "ORDER BY v.voice_id DESC " +
-            "LIMIT 1", nativeQuery = true)
-    List<Object[]> fetchVoiceDetailsByTranslatedSentenceId(@Param("translatedSentenceId") Long translatedSentenceId);
-
+            " INNER JOIN users u on v.user_id = u.user_id " +
+            "WHERE v.translated_sentence_id in :translatedSentenceIds " +
+            "ORDER BY v.voice_id DESC", nativeQuery = true)
+    List<Object[]> fetchVoiceDetailsByTranslatedSentenceId(@Param("translatedSentenceIds") List<Long> translatedSentenceIds);
 
     @Query("select t from TranslatedSentenceEntity t where (t.secondReview = 0 or t.secondReview = 2) and t.batchDetails.secondReviewerId = :userId and t.batchDetailsId = :batchDetailsId")
     List<TranslatedSentenceEntity> findExpertReviewersReviewedTasks(

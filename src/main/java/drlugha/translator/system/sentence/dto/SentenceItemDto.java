@@ -14,5 +14,9 @@ public interface SentenceItemDto {
 
     String getAudioUrl();
 
+    Long getRecordedByUserId();
+
+    String getRecordedByUsername();
+
     Long getBatchDetailsId(); // Add this method to the interface
 }

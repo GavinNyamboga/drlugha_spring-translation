@@ -44,7 +44,7 @@ public class SecurityConfigurer extends WebSecurityConfigurerAdapter {
         http.csrf().disable().authorizeRequests()
                 .antMatchers("/fetch/users", "/delete/user/{user_id}", "/delete/sentence/{id}", "/stats", "/languages/*", "/batch").hasRole("ADMIN")
                 .antMatchers("/update/sentence/{id}", "/update/translatedsentencestatus/{id}", "/update/voicestatus/{voiceId}").hasAnyRole("ADMIN", "MODERATOR")
-                .antMatchers("/authenticate", "/create/user", "/hash-passwords", "/batch/feedback").permitAll()
+                .antMatchers("/authenticate", "/create/user", "/hash-passwords", "/batch/feedback", "/batch-details/download").permitAll()
                 .anyRequest().authenticated()
                 .and().sessionManagement().sessionCreationPolicy(SessionCreationPolicy.STATELESS);
         http.cors().configurationSource(request -> {
