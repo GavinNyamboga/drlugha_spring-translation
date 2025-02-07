@@ -1,5 +1,6 @@
 package drlugha.translator.system.batch.dto;
 
+import drlugha.translator.system.batch.enums.BatchOrigin;
 import drlugha.translator.system.sentence.dto.CreateSentenceDTO;
 import drlugha.translator.system.batch.model.BatchEntity;
 import drlugha.translator.shared.enums.DeletionStatus;
@@ -26,6 +27,8 @@ public class BatchDTO {
 
     private Long uploaderId;
 
+    private BatchOrigin batchOrigin;
+
     private List<CreateSentenceDTO> sentences;
 
     public BatchEntity dtoToEntity() {
@@ -41,6 +44,8 @@ public class BatchDTO {
             batchEntity.setDescription(this.getDescription());
         if (this.getUploaderId() != null)
             batchEntity.setUploaderId(this.getUploaderId());
+        if (this.getBatchOrigin() != null)
+            batchEntity.setBatchOrigin(this.getBatchOrigin());
         batchEntity.setDeletionStatus(DeletionStatus.NOT_DELETED);
 
         return batchEntity;

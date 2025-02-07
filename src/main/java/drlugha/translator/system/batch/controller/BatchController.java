@@ -1,6 +1,7 @@
 package drlugha.translator.system.batch.controller;
 
 import drlugha.translator.system.batch.dto.*;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchEntity;
 import drlugha.translator.system.batch.service.BatchService;
@@ -32,10 +33,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -72,9 +70,15 @@ public class BatchController extends BaseController {
         return entity(batchResponseDTOS);
     }
 
-    @PostMapping({"/batch"})
+    @PostMapping("/batch")
     public ResponseEntity<ResponseMessage> addBatch(@RequestBody BatchDTO batchDto) {
         return entity(batchService.addBatch(batchDto));
+    }
+
+    @PostMapping("/batch/review/{languageId}")
+    public ResponseEntity<ResponseMessage> reReviewBatch(@PathVariable Long languageId,
+                                                         @RequestBody List<BatchReviewDTO> reviewDTOS) {
+        return entity(batchService.addBatchReReview(languageId, reviewDTOS));
     }
 
     @PutMapping({"/batch"})
@@ -203,7 +207,7 @@ public class BatchController extends BaseController {
             return ResponseEntity.badRequest().body("Please provide batch details id".getBytes());
         }
 
-        return getCompletedSentences(batchDetailsId);
+        return batchService.getCompletedSentences(batchDetailsId);
     }
 
 
@@ -217,85 +221,6 @@ public class BatchController extends BaseController {
         }
     }
 
-
-    private ResponseEntity<byte[]> getCompletedSentences(Long batchDetailsId) {
-        // Assuming this list is obtained from your repository
-        List<SentenceItemDto> sentences = batchDetailsRepo.getAllSentencesInBatchDetails(Collections.singletonList(batchDetailsId));
-
-        if (sentences.isEmpty()) {
-            String errorMessage = "No completed sentences found for batchDetailsId: " + batchDetailsId;
-            return ResponseEntity.badRequest().body(errorMessage.getBytes());
-        }
-
-        // Create a map to store the unique sentences based on their IDs
-        Map<Long, SentenceItemDto> uniqueSentences = new HashMap<>();
-        for (SentenceItemDto sentence : sentences) {
-            // Check if the sentence already exists in the map
-            if (!uniqueSentences.containsKey(sentence.getSentenceId())) {
-                // If not, add it to the map
-                uniqueSentences.put(sentence.getSentenceId(), sentence);
-            }
-        }
-
-        try {
-            ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
-                for (SentenceItemDto sentence : uniqueSentences.values()) {
-                    String audioUrl = sentence.getAudioUrl();
-                    if (audioUrl == null || audioUrl.isEmpty()) {
-                        // Skip processing for records with null or empty audio URL
-                        continue;
-                    }
-
-                    try {
-                        // Create a valid URL object
-                        URL url = new URL(audioUrl);
-
-                        // Extract filename from URL
-                        String[] pathSegments = url.getPath().split("/");
-                        String filename = pathSegments[pathSegments.length - 1];
-
-                        // Open connection and retrieve input stream
-                        try (InputStream inputStream = url.openStream()) {
-                            byte[] audioFileBytes = inputStream.readAllBytes();
-
-                            // Add voice file to the ZIP file
-                            ZipEntry zipEntry = new ZipEntry(filename);
-                            zos.putNextEntry(zipEntry);
-                            zos.write(audioFileBytes);
-                            zos.closeEntry();
-                        }
-                    } catch (MalformedURLException e) {
-                        // Handle MalformedURLException
-                        e.printStackTrace();
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                .body(("Malformed URL: " + audioUrl).getBytes());
-                    } catch (IOException e) {
-                        // Handle IOException (URL not found or other IO errors)
-                        e.printStackTrace();
-                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                                .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                .body(("Error reading audio file from URL: " + audioUrl).getBytes());
-                    }
-                }
-            }
-
-            byte[] zipBytes = baos.toByteArray();
-            return ResponseEntity.ok()
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .header("Content-Disposition", "attachment; filename=batch_" + batchDetailsId + "_audio.zip")
-                    .body(zipBytes);
-        } catch (IOException e) {
-            // Handle IOException (ZIP creation or other IO errors)
-            e.printStackTrace();
-            String errorMessage = "Error creating ZIP file for batchDetailsId: " + batchDetailsId + ". Please try again later.";
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                    .body(errorMessage.getBytes());
-        }
-    }
-
     @GetMapping({"batch-details/expert-reviewed"})
     public ResponseEntity getSentencesAfterExpertReview(Long batchDetailsId) {
         return batchService.getTranslatedSentences(batchDetailsId);
@@ -303,7 +228,7 @@ public class BatchController extends BaseController {
 
     @CrossOrigin(exposedHeaders = "Content-Disposition")
     @GetMapping("batch-details/download")
-    public ResponseEntity downloadAudio(@RequestParam List<Long> batchDetailsIds,
+    public ResponseEntity downloadBatchDetails(@RequestParam List<Long> batchDetailsIds,
                                         @RequestParam("excelOnly") boolean excelOnly) throws Exception {
         return batchService.downloadBatchDetails(batchDetailsIds, excelOnly);
     }

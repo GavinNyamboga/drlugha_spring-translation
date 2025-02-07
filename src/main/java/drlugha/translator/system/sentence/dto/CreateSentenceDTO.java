@@ -1,15 +1,13 @@
 package drlugha.translator.system.sentence.dto;
 
 import drlugha.translator.system.sentence.model.Sentence;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.*;
 
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
+@Builder
 public class CreateSentenceDTO {
 
     private String sentenceText;

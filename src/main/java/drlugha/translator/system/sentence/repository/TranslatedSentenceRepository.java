@@ -145,7 +145,28 @@ public interface TranslatedSentenceRepository extends JpaRepository<TranslatedSe
 
     Integer countAllByBatchDetailsBatchDetailsId(Long batchDetailsId);
 
+//    @Query("SELECT t FROM TranslatedSentenceEntity t INNER JOIN Sentence s ON t.sentenceId=s.sentenceId WHERE" +
+//            " (t.translatedText=:translatedText OR s.sentenceText=:sentenceText) AND t.language.languageId=:languageId AND t.deletionStatus=0")
+//    List<TranslatedSentenceEntity> findByTranslatedTextAndOriginalSentenceAndLanguageId(@Param("translatedText") String translatedText,
+//                                                                                        @Param("sentenceText") String sentenceText,
+//                                                                                        @Param("languageId") Long languageId);
 
+    @Query(value = "SELECT t.translated_sentence_id " +
+            "FROM translated_sentence t" +
+            "         INNER JOIN sentences s ON t.sentence_id = s.sentence_id" +
+            "         INNER JOIN" +
+            "     languages l on t.language = l.language_id" +
+            " WHERE (t.translated_text = :translatedText OR s.sentence_text = :sentenceText)" +
+            "  AND l.language_id = :languageId" +
+            "  AND t.deletion_status = 0", nativeQuery = true)
+    List<Long> findByTranslatedTextAndOriginalSentenceAndLanguageId(@Param("translatedText") String translatedText,
+                                                                    @Param("sentenceText") String sentenceText,
+                                                                    @Param("languageId") Long languageId);
+
+    @Modifying
+    @Query(value = "update translated_sentence t set t.sentence_status='MARKED_FOR_RE_REVIEW', t.deletion_status=1 " +
+            " where t.sentence_id in :ids", nativeQuery = true)
+    void updateTranslatedSentencesForReview(@Param("ids") List<Long> translatedSentenceIds);
 }
 
 

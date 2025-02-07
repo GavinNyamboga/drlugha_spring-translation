@@ -8,10 +8,7 @@ import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.shared.exception.GeneralException;
 import drlugha.translator.system.batch.dto.*;
-import drlugha.translator.system.batch.enums.BatchStatus;
-import drlugha.translator.system.batch.enums.BatchType;
-import drlugha.translator.system.batch.enums.Task;
-import drlugha.translator.system.batch.enums.UserBatchRole;
+import drlugha.translator.system.batch.enums.*;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
@@ -51,10 +48,14 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.EntityManager;
+import javax.persistence.PersistenceContext;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.text.SimpleDateFormat;
 import java.util.*;
@@ -126,6 +127,7 @@ public class BatchService {
     public ResponseMessage addBatch(BatchDTO batchDto) {
         BatchEntity batchEntity = batchDto.dtoToEntity();
         batchEntity.setFromFeedback(YesNo.NO);
+        batchEntity.setBatchOrigin(batchDto.getBatchOrigin());
         BatchEntity batch = this.batchRepo.save(batchEntity);
         return this.sentenceService.addSentences(batchDto.getSentences(), batch.getBatchNo());
     }
@@ -1205,6 +1207,7 @@ public class BatchService {
             batch.setSource("User feedback");
             batch.setBatchType(BatchType.TEXT);
             batch.setFromFeedback(YesNo.YES);
+            batch.setBatchOrigin(BatchOrigin.FEEDBACK);
             batch.setDescription(String.format("User feedback from %s to %s", sourceLanguage.getName(), targetLanguage.getName()));
             batch.setDeletionStatus(DeletionStatus.NOT_DELETED);
             batch.setTargetLanguage(targetLanguage);
@@ -1339,5 +1342,141 @@ public class BatchService {
         batchDetailsUserAssignment.setBatchRole(role);
         batchDetailsUserAssigmentRepo.save(batchDetailsUserAssignment);
     }
+
+    public ResponseEntity<byte[]> getCompletedSentences(Long batchDetailsId) {
+        // Assuming this list is obtained from your repository
+        List<SentenceItemDto> sentences = batchDetailsRepo.getAllSentencesInBatchDetails(Collections.singletonList(batchDetailsId));
+
+        if (sentences.isEmpty()) {
+            String errorMessage = "No completed sentences found for batchDetailsId: " + batchDetailsId;
+            return ResponseEntity.badRequest().body(errorMessage.getBytes());
+        }
+
+        // Create a map to store the unique sentences based on their IDs
+        Map<Long, SentenceItemDto> uniqueSentences = new HashMap<>();
+        for (SentenceItemDto sentence : sentences) {
+            // Check if the sentence already exists in the map
+            if (!uniqueSentences.containsKey(sentence.getSentenceId())) {
+                // If not, add it to the map
+                uniqueSentences.put(sentence.getSentenceId(), sentence);
+            }
+        }
+
+        try {
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            try (ZipOutputStream zos = new ZipOutputStream(baos)) {
+                for (SentenceItemDto sentence : uniqueSentences.values()) {
+                    String audioUrl = sentence.getAudioUrl();
+                    if (audioUrl == null || audioUrl.isEmpty()) {
+                        // Skip processing for records with null or empty audio URL
+                        continue;
+                    }
+
+                    try {
+                        // Create a valid URL object
+                        URL url = new URL(audioUrl);
+
+                        // Extract filename from URL
+                        String[] pathSegments = url.getPath().split("/");
+                        String filename = pathSegments[pathSegments.length - 1];
+
+                        // Open connection and retrieve input stream
+                        try (InputStream inputStream = url.openStream()) {
+                            byte[] audioFileBytes = inputStream.readAllBytes();
+
+                            // Add voice file to the ZIP file
+                            ZipEntry zipEntry = new ZipEntry(filename);
+                            zos.putNextEntry(zipEntry);
+                            zos.write(audioFileBytes);
+                            zos.closeEntry();
+                        }
+                    } catch (MalformedURLException e) {
+                        // Handle MalformedURLException
+                        e.printStackTrace();
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                .body(("Malformed URL: " + audioUrl).getBytes());
+                    } catch (IOException e) {
+                        // Handle IOException (URL not found or other IO errors)
+                        e.printStackTrace();
+                        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                .body(("Error reading audio file from URL: " + audioUrl).getBytes());
+                    }
+                }
+            }
+
+            byte[] zipBytes = baos.toByteArray();
+            return ResponseEntity.ok()
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .header("Content-Disposition", "attachment; filename=batch_" + batchDetailsId + "_audio.zip")
+                    .body(zipBytes);
+        } catch (IOException e) {
+            // Handle IOException (ZIP creation or other IO errors)
+            log.error(e.getMessage());
+            String errorMessage = "Error creating ZIP file for batchDetailsId: " + batchDetailsId + ". Please try again later.";
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(errorMessage.getBytes());
+        }
+    }
+
+    @Transactional
+    public ResponseMessage addBatchReReview(Long languageId, List<BatchReviewDTO> reviewDTOS) {
+        if (languageId == null)
+            throw new BadRequestException("Language is required");
+
+        Language language = languageRepository.findById(languageId).stream().findFirst().orElse(null);
+        if (language == null)
+            throw new BadRequestException("Language not found");
+
+        // Group the list into batches of maximum 500 sentences
+        List<List<BatchReviewDTO>> groupedList = new ArrayList<>();
+        int groupSize = 500;
+
+        for (int i = 0; i < reviewDTOS.size(); i += groupSize) {
+            int end = Math.min(reviewDTOS.size(), i + groupSize);
+            List<BatchReviewDTO> batch = reviewDTOS.subList(i, end);
+            groupedList.add(new ArrayList<>(batch));
+        }
+
+        log.info("We have {} grouped for review", groupedList.size());
+
+        java.sql.Date currentDate = new java.sql.Date(System.currentTimeMillis());
+        for (List<BatchReviewDTO> batch : groupedList) {
+
+            List<CreateSentenceDTO> sentences = new ArrayList<>();
+            for (BatchReviewDTO batchReviewDTO : batch) {
+                log.info("datasetSentence ... {}", batchReviewDTO.getDatasetSentence());
+                log.info("englishSentence ... {}", batchReviewDTO.getEnglishSentence());
+                //we will get the original sentence
+                List<Long> translatedSentenceIds = translatedSentenceRepo.findByTranslatedTextAndOriginalSentenceAndLanguageId(batchReviewDTO.getDatasetSentence(),
+                                batchReviewDTO.getEnglishSentence(), language.getLanguageId());
+                log.info("FOUND {} TRANSLATED SENTENCES...", translatedSentenceIds.size());
+
+                if (!translatedSentenceIds.isEmpty()) {
+                    translatedSentenceRepo.updateTranslatedSentencesForReview(translatedSentenceIds);
+                  /*  translatedSentenceRepo.
+                            TranslatedSentenceEntity translatedSentenceEntity = translatedSentenceEntities.get(0);
+                    translatedSentenceEntity.setSentenceStatus(SentenceStatus.MARKED_FOR_RE_REVIEW);
+                    translatedSentenceEntity.setDeletionStatus(DeletionStatus.DELETED);
+                    translatedSentenceRepo.save(translatedSentenceEntity);*/
+                }
+
+                sentences.add(CreateSentenceDTO.builder().sentenceText(batchReviewDTO.getEnglishSentence()).build());
+            }
+
+            BatchDTO batchDTO = new BatchDTO();
+            batchDTO.setDescription("Batch from Re-Review created on " + currentDate);
+            batchDTO.setSource("Re-review batch - " + language.getName());
+            batchDTO.setLinkUrl("");
+            batchDTO.setSentences(sentences);
+            batchDTO.setBatchOrigin(BatchOrigin.RE_REVIEW);
+            this.addBatch(batchDTO);
+        }
+
+        return new ResponseMessage("Successfully added sentences for re-reviews");
+    }
+
 }
 

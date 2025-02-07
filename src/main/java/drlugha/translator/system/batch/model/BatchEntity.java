@@ -1,6 +1,7 @@
 package drlugha.translator.system.batch.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import drlugha.translator.system.batch.enums.BatchOrigin;
 import drlugha.translator.system.sentence.model.Sentence;
 import drlugha.translator.system.batch.enums.BatchType;
 import drlugha.translator.shared.enums.DeletionStatus;
@@ -72,6 +73,10 @@ public class BatchEntity {
     @Column(name = "from_feedback", columnDefinition = "varchar(255) default 'NO'")
     @Enumerated(EnumType.STRING)
     private YesNo fromFeedback = YesNo.NO;
+
+    @Column(name = "batch_origin", columnDefinition = "varchar(255) default 'NORMAL'")
+    @Enumerated(EnumType.STRING)
+    private BatchOrigin batchOrigin;
 
     public BatchEntity(String source, String linkUrl, String description, BatchType batchType, Language language) {
         this.source = source;

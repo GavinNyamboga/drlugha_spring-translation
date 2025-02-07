@@ -1,6 +1,7 @@
 package drlugha.translator.system.batch.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import drlugha.translator.system.batch.enums.BatchOrigin;
 import drlugha.translator.system.language.dto.LanguageDTO;
 import drlugha.translator.system.batch.model.BatchEntity;
 import lombok.Data;
@@ -17,6 +18,8 @@ public class BatchResponseDTO {
 
     private Integer numberOfSentences;
 
+    private BatchOrigin batchOrigin;
+
     @JsonInclude(JsonInclude.Include.NON_NULL)
     private LanguageDTO audioLanguage;
 
@@ -25,6 +28,7 @@ public class BatchResponseDTO {
         source = batchEntity.getSource();
         linkUrl = batchEntity.getLinkUrl();
         description = batchEntity.getDescription();
+        batchOrigin = batchEntity.getBatchOrigin();
         numberOfSentences = batchEntity.getSentences().size();
         if (batchEntity.getAudioLanguage() != null) {
             LanguageDTO languageDTO = new LanguageDTO();

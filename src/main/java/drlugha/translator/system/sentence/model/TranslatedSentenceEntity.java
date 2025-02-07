@@ -2,6 +2,7 @@ package drlugha.translator.system.sentence.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
+import drlugha.translator.system.sentence.SentenceStatus;
 import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.shared.enums.DeletionStatus;
 import drlugha.translator.shared.enums.StatusTypes;
@@ -109,6 +110,10 @@ public class TranslatedSentenceEntity {
 
     @Column(columnDefinition = "int default 0", nullable = false)
     private DeletionStatus deletionStatus = DeletionStatus.NOT_DELETED;
+
+    @Column
+    @Enumerated(EnumType.STRING)
+    private SentenceStatus sentenceStatus = SentenceStatus.OK;
 }
 
 
