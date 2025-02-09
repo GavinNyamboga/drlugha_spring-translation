@@ -88,12 +88,12 @@ public class Controller {
             voice.setDateModified(new Date());
         }
         if (voice.getStatus() == null) {
-            voice.setStatus(StatusTypes.unreviewed);
+            voice.setStatus(StatusTypes.UNREVIEWED);
         }
 
         TranslatedSentenceEntity translatedSentence = translatedRepo.findById(translatedSentenceId).get();
 
-        translatedSentence.setRecordedStatus(StatusTypes.recorded);
+        translatedSentence.setRecordedStatus(StatusTypes.RECORDED);
 
         voice.setTranslatedSentence(translatedSentence);
         voice.setBatchDetailsId(translatedSentence.getBatchDetailsId());

@@ -20,12 +20,16 @@ import java.util.List;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "batches")
+@Table(name = "batches",
+indexes = {
+        @Index(name = "idx_batches", columnList = "batch_no, deletion_status, batch_type, from_feedback")
+})
 @SQLDelete(sql = "UPDATE batches SET deletion_status = 1 WHERE batch_no=?")
 @Where(clause = "deletion_status=0")
 public class BatchEntity {
 
     @Id
+    @Column(name = "batch_no")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long batchNo;
 
@@ -59,14 +63,14 @@ public class BatchEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     private User uploader;
 
-    @Column(columnDefinition = "int default 0", nullable = false)
+    @Column(name = "deletion_status", columnDefinition = "int default 0", nullable = false)
     private DeletionStatus deletionStatus = DeletionStatus.NOT_DELETED;
 
-    @JoinColumn(name = "source_language", referencedColumnName = "languageId")
+    @JoinColumn(name = "source_language", referencedColumnName = "language_id")
     @ManyToOne
     private Language sourceLanguage;
 
-    @JoinColumn(name = "target_language", referencedColumnName = "languageId")
+    @JoinColumn(name = "target_language", referencedColumnName = "language_id")
     @ManyToOne
     private Language targetLanguage;
 

@@ -40,7 +40,7 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.data.domain.Sort;
+import org.springframework.data.domain.*;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -48,8 +48,6 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import javax.persistence.EntityManager;
-import javax.persistence.PersistenceContext;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -392,7 +390,7 @@ public class BatchService {
     public BatchInfoDTO getAudioRecorderBatchDetails(Long userId) {
         List<BatchDetailsEntity> batchDetails = this.batchDetailsRepo.findAllByRecordedById(userId);
         List<BatchInfoItemDTO> sortedBatchDetails = batchDetails.stream().map(element -> {
-            Integer rejectedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.rejected, element.getBatchDetailsId());
+            Integer rejectedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.REJECTED, element.getBatchDetailsId());
             BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
             if (batchInfoItemDTO.getAudioRecorded()) {
                 batchInfoItemDTO.setPendingSentences(rejectedAudios);
@@ -406,7 +404,7 @@ public class BatchService {
     public BatchInfoDTO getAudioReviewerBatchDetails(Long userId) {
         List<BatchDetailsEntity> batchDetails = this.batchDetailsRepo.findAllByAudioVerifiedById(userId);
         List<BatchInfoItemDTO> sortedBatchDetails = batchDetails.stream().map(element -> {
-            Integer unreviewedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.unreviewed, element.getBatchDetailsId());
+            Integer unreviewedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.UNREVIEWED, element.getBatchDetailsId());
             BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
             if (batchInfoItemDTO.getAudioReviewed())
                 batchInfoItemDTO.setAudioRecorded(unreviewedAudios <= 0);
@@ -445,7 +443,7 @@ public class BatchService {
         String language = batchDetails.getLanguage().getName();
         Integer numberOfAllSentences = this.sentenceRepository.countAllByBatchNo(batchDetails.getBatch().getBatchNo());
 
-        List<VoiceEntity> approvedVoices = this.voiceRepo.findAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.approved, batchDetailsId);
+        List<VoiceEntity> approvedVoices = this.voiceRepo.findAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.APPROVED, batchDetailsId);
         List<CompletedSentenceItemDto> completedSentenceList = approvedVoices.stream().map(voice -> {
             String presignedUrl = this.amazonClient.generatePresignedUrl(voice.getFileUrl());
             voice.setFileUrl(presignedUrl);
@@ -962,7 +960,7 @@ public class BatchService {
         if (batchDetails.getBatchStatus().ordinal() < BatchStatus.TRANSLATION_VERIFIED.ordinal()) {
             Optional<BatchDetailsStatsEntity> optionalTranslatorStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
             if (optionalTranslatorStats.isPresent()) {
-                Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.rejected);
+                Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.REJECTED);
                 if (rejectedSentences <= 0) {
                     batchDetails.setBatchStatus(BatchStatus.TRANSLATION_VERIFIED);
                     this.batchDetailsRepo.save(batchDetails);
@@ -986,7 +984,7 @@ public class BatchService {
             if (batchDetails.getBatchStatus().ordinal() < BatchStatus.TRANSLATION_VERIFIED.ordinal() && batchDetails.getBatchStatus().ordinal() >= BatchStatus.TRANSLATED.ordinal()) {
                 Optional<BatchDetailsStatsEntity> optionalTranslatorStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
                 if (optionalTranslatorStats.isPresent()) {
-                    Integer approvedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.approved);
+                    Integer approvedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(batchDetailsId, StatusTypes.APPROVED);
                     Integer totalSentences = this.translatedSentenceRepo.countAllByBatchDetailsBatchDetailsId(batchDetailsId);
                     if (approvedSentences >= totalSentences)
                         malformedBatchDetailsIds.add(batchDetails.getBatchDetailsId());
@@ -1008,7 +1006,7 @@ public class BatchService {
         if (batchDetails.getBatchStatus().ordinal() < BatchStatus.SECOND_VERIFICATION_DONE.ordinal()) {
             Optional<BatchDetailsStatsEntity> optionalUsersStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetailsId);
             if (optionalUsersStats.isPresent()) {
-                Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndSecondReview(batchDetailsId, StatusTypes.rejected);
+                Integer rejectedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndSecondReview(batchDetailsId, StatusTypes.REJECTED);
                 if (rejectedSentences <= 0) {
                     batchDetails.setBatchStatus(BatchStatus.SECOND_VERIFICATION_DONE);
                     this.batchDetailsRepo.save(batchDetails);
@@ -1140,7 +1138,7 @@ public class BatchService {
     private List<BatchInfoItemDTO> getSortedTranslationBatchDetails(List<BatchDetailsEntity> batchDetails) {
         return batchDetails.stream()
                 .map(element -> {
-                    Integer rejectedSentences = this.translatedSentenceRepo.countRejectedSentences(element.getBatchDetailsId(), StatusTypes.rejected, StatusTypes.rejected);
+                    Integer rejectedSentences = this.translatedSentenceRepo.countRejectedSentences(element.getBatchDetailsId(), StatusTypes.REJECTED, StatusTypes.REJECTED);
                     BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
                     if (batchInfoItemDTO.getTranslated()) {
                         batchInfoItemDTO.setPendingSentences(rejectedSentences);
@@ -1157,7 +1155,7 @@ public class BatchService {
     private List<BatchInfoItemDTO> getSortedReviewerBatchDetails(List<BatchDetailsEntity> translationBatchDetails) {
         return translationBatchDetails.stream()
                 .map(element -> {
-                    Integer unreviewedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(element.getBatchDetailsId(), StatusTypes.unreviewed);
+                    Integer unreviewedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndReviewStatus(element.getBatchDetailsId(), StatusTypes.UNREVIEWED);
                     BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
                     batchInfoItemDTO.setReviewed(unreviewedSentences <= 0);
                     batchInfoItemDTO.setPendingSentences(unreviewedSentences);
@@ -1172,7 +1170,7 @@ public class BatchService {
     private List<BatchInfoItemDTO> getSortedExpertReviewerBatchDetails(List<BatchDetailsEntity> translationBatchDetails) {
         return translationBatchDetails.stream()
                 .map(element -> {
-                    Integer unreviewedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndSecondReview(element.getBatchDetailsId(), StatusTypes.unreviewed);
+                    Integer unreviewedSentences = this.translatedSentenceRepo.countAllByBatchDetailsIdAndSecondReview(element.getBatchDetailsId(), StatusTypes.UNREVIEWED);
                     BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
                     batchInfoItemDTO.setExpertReviewed(unreviewedSentences <= 0);
                     batchInfoItemDTO.setPendingSentences(unreviewedSentences);
@@ -1243,7 +1241,7 @@ public class BatchService {
 
         TranslatedSentenceEntity translatedSentenceEntity = new TranslatedSentenceEntity();
         translatedSentenceEntity.setDateCreated(new Date());
-        translatedSentenceEntity.setReviewStatus(StatusTypes.unreviewed);
+        translatedSentenceEntity.setReviewStatus(StatusTypes.UNREVIEWED);
         translatedSentenceEntity.setSentenceId(sentence.getSentenceId());
         translatedSentenceEntity.setTranslatedText(feedbackDTO.getEditedTranslatedText());
         translatedSentenceEntity.setBatchDetailsId(batchDetailsEntity.getBatchDetailsId());
@@ -1267,7 +1265,7 @@ public class BatchService {
         if (assignmentDTO.getUserIds().isEmpty() && assignmentDTO.getUserId() != null)
             assignmentDTO.setUserIds(List.of(assignmentDTO.getUserId()));
 
-        boolean useLegacyImplementation = !role.equals(UserBatchRole.AUDIO_RECORDER);
+        boolean useLegacyImplementation = !role.equals(UserBatchRole.AUDIO_RECORDER) && !role.equals(UserBatchRole.EXPERT_AUDIO_REVIEWER);
 
         //delete existing assignments
         batchDetailsUserAssigmentRepo.deleteAllByBatchDetailsIdAndBatchRole(batchDetailsId, role);
@@ -1293,8 +1291,6 @@ public class BatchService {
                         batchDetailsEntity.setAudioVerifiedById(userId);
                         batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
                         break;
-                    /*case EXPERT_TEXT_REVIEWER:
-                         batchDetailsEntity.*/
                     default:
                         log.info("NO ROLE....");
 
@@ -1451,7 +1447,7 @@ public class BatchService {
                 log.info("englishSentence ... {}", batchReviewDTO.getEnglishSentence());
                 //we will get the original sentence
                 List<Long> translatedSentenceIds = translatedSentenceRepo.findByTranslatedTextAndOriginalSentenceAndLanguageId(batchReviewDTO.getDatasetSentence(),
-                                batchReviewDTO.getEnglishSentence(), language.getLanguageId());
+                        batchReviewDTO.getEnglishSentence(), language.getLanguageId());
                 log.info("FOUND {} TRANSLATED SENTENCES...", translatedSentenceIds.size());
 
                 if (!translatedSentenceIds.isEmpty()) {
@@ -1478,5 +1474,25 @@ public class BatchService {
         return new ResponseMessage("Successfully added sentences for re-reviews");
     }
 
+    public Page<BatchResponseDTO> getAllBatches(String batchType, Integer page, Integer pageSize, BatchOrigin batchOrigin) {
+        log.info("Received request to get all batches with type: {}", batchType);
+        BatchType batchTypeEnum = BatchType.fromName(batchType).orElse(BatchType.TEXT);
+
+        Pageable pageable = PageRequest.of(page, pageSize);
+        Page<BatchEntity> batchEntities;
+        if (batchTypeEnum == BatchType.TEXT_FEEDBACK)
+            batchEntities = batchRepo.findAllByBatchTypeAndFromFeedback(BatchType.TEXT, YesNo.YES, pageable, batchOrigin);
+        else
+            batchEntities = batchRepo.findAllByBatchType(batchTypeEnum, pageable, batchOrigin);
+
+        if (batchEntities == null)
+            return new PageImpl<>(Collections.emptyList());
+
+        List<BatchResponseDTO> batchResponseDTOS = batchEntities
+                .stream()
+                .map(BatchResponseDTO::new)
+                .collect(Collectors.toList());
+        return new PageImpl<>(batchResponseDTOS, pageable, batchEntities.getTotalElements());
+    }
 }
 

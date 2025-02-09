@@ -52,14 +52,14 @@ public class TranslatedSentencesPerBatchDto {
         }
 
         if (translatedSentenceEntity.getReviewStatus() != null &&
-                translatedSentenceEntity.getReviewStatus() != StatusTypes.unreviewed) {
-            translatedSentencesPerBatchDto.approved = translatedSentenceEntity.getReviewStatus() == StatusTypes.approved;
+                translatedSentenceEntity.getReviewStatus() != StatusTypes.UNREVIEWED) {
+            translatedSentencesPerBatchDto.approved = translatedSentenceEntity.getReviewStatus() == StatusTypes.APPROVED;
         }
 
         if (translatedSentenceEntity.getSecondReview() != null &&
-                translatedSentenceEntity.getReviewStatus() != StatusTypes.unreviewed &&
-                translatedSentenceEntity.getSecondReview() != StatusTypes.unreviewed) {
-            translatedSentencesPerBatchDto.approved = translatedSentenceEntity.getSecondReview() == StatusTypes.approved;
+                translatedSentenceEntity.getReviewStatus() != StatusTypes.UNREVIEWED &&
+                translatedSentenceEntity.getSecondReview() != StatusTypes.UNREVIEWED) {
+            translatedSentencesPerBatchDto.approved = translatedSentenceEntity.getSecondReview() == StatusTypes.APPROVED;
         }
 
         translatedSentencesPerBatchDto.moderatorComment = moderatorComments;

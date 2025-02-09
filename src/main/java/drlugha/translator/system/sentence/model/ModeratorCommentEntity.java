@@ -18,7 +18,7 @@ public class ModeratorCommentEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long commentId;
 
-    @JoinColumn(name = "translated_sentence_id", referencedColumnName = "translatedSentenceId", unique = true)
+    @JoinColumn(name = "translated_sentence_id", referencedColumnName = "translated_sentence_id", unique = true)
     @OneToOne
     private TranslatedSentenceEntity translatedSentence;
 

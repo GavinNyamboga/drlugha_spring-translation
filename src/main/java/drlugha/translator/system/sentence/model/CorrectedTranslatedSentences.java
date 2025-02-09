@@ -26,7 +26,7 @@ public class CorrectedTranslatedSentences {
     private Long translatedSentenceId;
 
     @JsonIgnore
-    @JoinColumn(name = "translated_sentence_id", referencedColumnName = "translatedSentenceId", updatable = false, insertable = false)
+    @JoinColumn(name = "translated_sentence_id", referencedColumnName = "translated_sentence_id", updatable = false, insertable = false)
     @ManyToOne()
     private TranslatedSentenceEntity translatedSentence;
 

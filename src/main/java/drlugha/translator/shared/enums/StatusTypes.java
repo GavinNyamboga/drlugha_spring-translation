@@ -1,5 +1,5 @@
 package drlugha.translator.shared.enums;
 
 public enum StatusTypes {
-    approved, unreviewed, rejected, notRecorded, recorded, completed, assigned
+    APPROVED, UNREVIEWED, REJECTED, NOT_RECORDED, RECORDED, COMPLETED, ASSIGNED
 }

@@ -34,11 +34,11 @@ public class AssignedSentencesEntity {
     @Column(name = "sentence_id")
     private Long sentenceId;
 
-    @JoinColumn(name = "sentence_id", referencedColumnName = "sentenceId", updatable = false, insertable = false)
+    @JoinColumn(name = "sentence_id", referencedColumnName = "sentence_id", updatable = false, insertable = false)
     @ManyToOne(fetch = FetchType.LAZY)
     private Sentence sentence;
 
-    @JoinColumn(name = "translate_to_language", referencedColumnName = "languageId")
+    @JoinColumn(name = "translate_to_language", referencedColumnName = "language_id")
     @ManyToOne
     private Language translateToLanguage;
 

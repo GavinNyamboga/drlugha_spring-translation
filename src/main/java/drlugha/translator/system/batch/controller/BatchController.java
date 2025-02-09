@@ -1,7 +1,7 @@
 package drlugha.translator.system.batch.controller;
 
 import drlugha.translator.system.batch.dto.*;
-import drlugha.translator.system.batch.enums.BatchStatus;
+import drlugha.translator.system.batch.enums.*;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchEntity;
 import drlugha.translator.system.batch.service.BatchService;
@@ -11,9 +11,6 @@ import drlugha.translator.system.batch.dto.CreatePrefixedBatchDTO;
 import drlugha.translator.system.batch.dto.FeedbackDTO;
 import drlugha.translator.system.sentence.dto.CompletedSentencesDto;
 import drlugha.translator.system.sentence.dto.SentenceItemDto;
-import drlugha.translator.system.batch.enums.BatchType;
-import drlugha.translator.system.batch.enums.Task;
-import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
 import drlugha.translator.system.batch.repository.BatchRepository;
@@ -23,6 +20,10 @@ import drlugha.translator.shared.controller.BaseController;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -53,21 +54,11 @@ public class BatchController extends BaseController {
     private static final Logger logger = LoggerFactory.getLogger(BatchController.class);
 
     @GetMapping("/all/batches")
-    public ResponseEntity<List<BatchResponseDTO>> getAllBatches(@RequestParam(required = false) String batchType) {
-        logger.info("Received request to get all batches with type: {}", batchType);
-        BatchType batchTypeEnum = BatchType.fromName(batchType).orElse(BatchType.TEXT);
-        logger.info("BATCH TYPE: {}", batchTypeEnum);
-        List<BatchEntity> batchEntities;
-        if (batchTypeEnum == BatchType.TEXT_FEEDBACK)
-            batchEntities = batchRepo.findAllByBatchTypeAndFromFeedback(BatchType.TEXT, YesNo.YES);
-        else
-            batchEntities = batchRepo.findAllByBatchType(batchTypeEnum);
-
-        List<BatchResponseDTO> batchResponseDTOS = batchEntities
-                .stream()
-                .map(BatchResponseDTO::new)
-                .collect(Collectors.toList());
-        return entity(batchResponseDTOS);
+    public ResponseEntity<Page<BatchResponseDTO>> getAllBatches(@RequestParam(required = false) String batchType,
+                                                                @RequestParam(name = "page", defaultValue = "0") Integer page,
+                                                                @RequestParam(name = "pageSize", defaultValue = "25") Integer pageSize,
+                                                                @RequestParam(name = "batchOrigin", required = false) BatchOrigin batchOrigin) {
+        return entity(batchService.getAllBatches(batchType, page,pageSize, batchOrigin));
     }
 
     @PostMapping("/batch")

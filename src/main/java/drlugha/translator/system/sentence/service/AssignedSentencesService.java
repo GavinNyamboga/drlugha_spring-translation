@@ -61,7 +61,7 @@ public class AssignedSentencesService {
             dto.setTranslateToLanguage(assignmentDto.getTranslateToLanguage());
             dto.setTranslatorId(assignmentDto.getTranslatorId());
             dto.setAssignedToReviewId(assignmentDto.getAssignedToReviewId());
-            dto.setTranslationStatus(StatusTypes.assigned);
+            dto.setTranslationStatus(StatusTypes.ASSIGNED);
 
             AssignedSentencesEntity assignment = new AssignmentDTO().DtoToEntity(dto);
 

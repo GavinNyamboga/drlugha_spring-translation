@@ -19,12 +19,16 @@ import java.util.List;
 @NoArgsConstructor
 @AllArgsConstructor
 @Entity
-@Table(name = "sentences")
+@Table(name = "sentences",
+indexes = {
+        @Index(name = "idx_sentences", columnList = "batch_no, deletion_status, sentence_id")
+})
 @SQLDelete(sql = "UPDATE sentences SET deletion_status = 1 WHERE sentence_id=?")
 @Where(clause = "deletion_status=0")
 public class Sentence {
 
     @Id
+    @Column(name = "sentence_id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long sentenceId;
 
@@ -44,7 +48,7 @@ public class Sentence {
     private String audioLink;
 
     @JsonIgnore
-    @JoinColumn(name = "batch_no", referencedColumnName = "batchNo", updatable = false, insertable = false)
+    @JoinColumn(name = "batch_no", referencedColumnName = "batch_no", updatable = false, insertable = false)
     @ManyToOne()
     private BatchEntity batch;
 
@@ -52,7 +56,7 @@ public class Sentence {
     @OneToMany(mappedBy = "sentence")
     private List<TranslatedSentenceEntity> translatedTexts;
 
-    @Column(columnDefinition = "int default 0", nullable = false)
+    @Column(name = "deletion_status", columnDefinition = "int default 0", nullable = false)
     private DeletionStatus deletionStatus = DeletionStatus.NOT_DELETED;
 
     // Transient fields

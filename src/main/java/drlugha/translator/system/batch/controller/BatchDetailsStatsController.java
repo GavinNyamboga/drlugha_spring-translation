@@ -1,14 +1,17 @@
 package drlugha.translator.system.batch.controller;
 
+import drlugha.translator.shared.controller.BaseController;
+import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
 import drlugha.translator.system.batch.service.BatchDetailsStatsService;
-import drlugha.translator.shared.dto.ResponseMessage;
-import drlugha.translator.shared.controller.BaseController;
 import drlugha.translator.system.stats.dto.*;
+import org.springframework.data.domain.Page;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 import java.util.List;
 
@@ -26,8 +29,12 @@ public class BatchDetailsStatsController extends BaseController {
     }
 
     @GetMapping({"/stats/all-batch-details"})
-    public ResponseEntity<List<BatchDetailsStats>> getBatchDetailsStats(String batchType) {
-        return entity(batchDetailsStatsService.getBatchDetailsStats(batchType));
+    public ResponseEntity<Page<BatchDetailsStats>> getBatchDetailsStats(String batchType,
+                                                                        @RequestParam(name = "page", defaultValue = "0") Integer page,
+                                                                        @RequestParam(name = "pageSize", defaultValue = "25") Integer pageSize,
+                                                                        @RequestParam(name = "languageId", required = false) Long languageId,
+                                                                        @RequestParam(name = "status", required = false) BatchStatus status) {
+        return entity(batchDetailsStatsService.getBatchDetailsStats(batchType, page, pageSize, languageId, status));
     }
 
     @GetMapping({"/stats/user/batch-details"})

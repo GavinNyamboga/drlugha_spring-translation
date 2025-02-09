@@ -1,10 +1,10 @@
 package drlugha.translator.system.batch.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
-import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.shared.enums.DeletionStatus;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.language.model.Language;
+import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.user.model.User;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -21,27 +21,32 @@ import java.util.List;
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
-@Table(name = "batch_details")
+@Table(name = "batch_details",
+        indexes = {
+                @Index(name = "idx_batch_details", columnList = "batch_details_id, batch_id, deletion_status")
+        })
 @Entity
 @SQLDelete(sql = "UPDATE batch_details SET deletion_status = 1 WHERE batch_details_id=?")
 @Where(clause = "deletion_status=0")
 public class BatchDetailsEntity {
 
     @Id
+    @Column(name = "batch_details_id")
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long batchDetailsId;
 
-    @JoinColumn(name = "language", referencedColumnName = "languageId")
+    @JoinColumn(name = "language", referencedColumnName = "language_id")
     @ManyToOne
     private Language language;
 
+    @Column(name = "batch_status")
     @Enumerated(EnumType.ORDINAL)
     private BatchStatus batchStatus;
 
     @Column(name = "batch_id")
     private Long batchId;
 
-    @JoinColumn(name = "batch_id", referencedColumnName = "batchNo", updatable = false, insertable = false)
+    @JoinColumn(name = "batch_id", referencedColumnName = "batch_no", updatable = false, insertable = false)
     @ManyToOne(fetch = FetchType.LAZY)
     private BatchEntity batch;
 
@@ -84,7 +89,7 @@ public class BatchDetailsEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     private User audioVerifiedBy;
 
-    @Column(columnDefinition = "int default 0", nullable = false)
+    @Column(name = "deletion_status", columnDefinition = "int default 0", nullable = false)
     private DeletionStatus deletionStatus = DeletionStatus.NOT_DELETED;
 
     @OneToMany(fetch = FetchType.EAGER, cascade = {CascadeType.ALL}, mappedBy = "batchDetails")

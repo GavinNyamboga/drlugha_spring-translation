@@ -18,6 +18,10 @@ import drlugha.translator.system.user.repository.UserRepository;
 import drlugha.translator.system.voice.repository.VoiceRepository;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.logging.log4j.util.Strings;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -79,60 +83,58 @@ public class BatchDetailsStatsService {
 
     }
 
-    public List<BatchDetailsStats> getBatchDetailsStats(String batchTypeString) {
+    public Page<BatchDetailsStats> getBatchDetailsStats(String batchTypeString, Integer page, Integer pageSize, Long languageId, BatchStatus status) {
         BatchType batchType = BatchType.fromName(batchTypeString).orElse(BatchType.TEXT);
 
-        List<BatchDetailsStatsMapping> batchDetailsStatsMappings = new ArrayList<>();
+        Pageable pageable = PageRequest.of(page, pageSize);
+
+        Page<BatchDetailsStatsMapping> batchDetailsStatsMappings = null;
+
+        Integer statusOrdinal =  status != null ? status.ordinal() : null;
 
         if (batchType == BatchType.AUDIO)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsAudio();
+            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsAudio(pageable, languageId, statusOrdinal);
+        else if (batchType == BatchType.TEXT)
+            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsText(pageable, languageId, statusOrdinal);
+        else if (batchType == BatchType.TEXT_FEEDBACK)
+            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsFeedbackText(pageable, languageId, statusOrdinal);
 
-        if (batchType == BatchType.TEXT)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsText();
+        if (batchDetailsStatsMappings == null)
+            return new PageImpl<>(Collections.emptyList());
 
-        if (batchType == BatchType.TEXT_FEEDBACK)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsFeedbackText();
-
-        Map<Long, List<BatchDetailsStatsMapping>> listMap = new HashMap<>();
-        batchDetailsStatsMappings.forEach(item ->
-                listMap.computeIfAbsent(item.getBatchDetailsId(), k -> new ArrayList<>())
-                        .add(item)
-        );
+        Map<Long, List<BatchDetailsStatsMapping>> listMap = batchDetailsStatsMappings.getContent().stream()
+                .collect(Collectors.groupingBy(BatchDetailsStatsMapping::getBatchDetailsId));
 
         Map<Long, BatchDetailsStats> batchStatsMap = new HashMap<>();
 
         for (Map.Entry<Long, List<BatchDetailsStatsMapping>> entry : listMap.entrySet()) {
-            BatchDetailsStats batchDetailsStats = null;
+            BatchDetailsStats batchDetailsStats = batchStatsMap.computeIfAbsent(entry.getKey(), k -> {
+                BatchDetailsStats newStats = new BatchDetailsStats();
+                BatchDetailsStatsMapping mapping = entry.getValue().get(0); // Get first mapping entry
 
+                newStats.setBatchDetailsId(entry.getKey());
+                newStats.setSource(mapping.getSource());
+                newStats.setLanguage(mapping.getLanguage());
+                newStats.setBatchNo(mapping.getBatchNo());
+                BatchStatus batchStatus = BatchStatus.values()[mapping.getStatus()];
+                if (batchStatus != null)
+                    newStats.setStatus(batchStatus.getLabel(batchType));
+                newStats.setNumberOfSentences(mapping.getNumberOfSentences());
+                newStats.setSentencesTranslated(mapping.getSentencesTranslated());
+                newStats.setSentencesApproved(mapping.getSentencesApproved());
+                newStats.setSentencesRejected(mapping.getSentencesRejected());
+                newStats.setSentencesExpertApproved(mapping.getSentencesExpertApproved());
+                newStats.setSentencesExpertRejected(mapping.getSentencesExpertRejected());
+                newStats.setTranslator(mapping.getTranslator());
+                newStats.setExpert(mapping.getExpert());
+                newStats.setModerator(mapping.getModerator());
+                newStats.setAudioModerator(mapping.getAudioModerator());
+
+                return newStats;
+            });
+
+            // Add audio stats for each mapping
             for (BatchDetailsStatsMapping mapping : entry.getValue()) {
-                if (batchStatsMap.containsKey(entry.getKey())) {
-                    // If we already have this batch, just add the audio stats
-                    batchDetailsStats = batchStatsMap.get(entry.getKey());
-                } else {
-                    // Create new batch details stats
-                    batchDetailsStats = new BatchDetailsStats();
-                    batchDetailsStats.setBatchDetailsId(entry.getKey());
-                    batchDetailsStats.setSource(mapping.getSource());
-                    batchDetailsStats.setLanguage(mapping.getLanguage());
-                    batchDetailsStats.setBatchNo(mapping.getBatchNo());
-                    BatchStatus batchStatus = BatchStatus.values()[mapping.getStatus()];
-                    if (batchStatus != null)
-                        batchDetailsStats.setStatus(batchStatus.getLabel(batchType));
-                    batchDetailsStats.setNumberOfSentences(mapping.getNumberOfSentences());
-                    batchDetailsStats.setSentencesTranslated(mapping.getSentencesTranslated());
-                    batchDetailsStats.setSentencesApproved(mapping.getSentencesApproved());
-                    batchDetailsStats.setSentencesRejected(mapping.getSentencesRejected());
-                    batchDetailsStats.setSentencesExpertApproved(mapping.getSentencesExpertApproved());
-                    batchDetailsStats.setSentencesExpertRejected(mapping.getSentencesExpertRejected());
-                    batchDetailsStats.setTranslator(mapping.getTranslator());
-                    batchDetailsStats.setExpert(mapping.getExpert());
-                    batchDetailsStats.setModerator(mapping.getModerator());
-                    batchDetailsStats.setAudioModerator(mapping.getAudioModerator());
-
-                    batchStatsMap.put(entry.getKey(), batchDetailsStats);
-                }
-
-                // Add audio stats for each mapping
                 BatchDetailsStats.AudioStats audioStats = new BatchDetailsStats.AudioStats();
                 audioStats.setAudiosRecorded(mapping.getAudiosRecorded());
                 audioStats.setRecorder(mapping.getRecorder());
@@ -142,7 +144,9 @@ public class BatchDetailsStatsService {
             }
         }
 
-        return new ArrayList<>(batchStatsMap.values());
+        // Convert List to Page
+        List<BatchDetailsStats> batchDetailsStatsList = new ArrayList<>(batchStatsMap.values());
+        return new PageImpl<>(batchDetailsStatsList, pageable, batchDetailsStatsMappings.getTotalElements());
     }
 
     public RoleStatsDTO findUsersStatsForEachBatchDetails(Long userId) {
@@ -252,22 +256,22 @@ public class BatchDetailsStatsService {
             BatchDetailsStatsEntity batchDetailsStats = new BatchDetailsStatsEntity();
             int translatedSentences = batchDetail.getTranslatedSentence().size();
 
-            int approvedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndReviewStatus(batchDetail.getBatchDetailsId(), StatusTypes.approved);
+            int approvedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndReviewStatus(batchDetail.getBatchDetailsId(), StatusTypes.APPROVED);
 
-            int rejectedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndReviewStatus(batchDetail.getBatchDetailsId(), StatusTypes.rejected);
+            int rejectedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndReviewStatus(batchDetail.getBatchDetailsId(), StatusTypes.REJECTED);
 
-            int expertApprovedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndSecondReview(batchDetail.getBatchDetailsId(), StatusTypes.approved);
-            int expertRejectedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndSecondReview(batchDetail.getBatchDetailsId(), StatusTypes.rejected);
+            int expertApprovedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndSecondReview(batchDetail.getBatchDetailsId(), StatusTypes.APPROVED);
+            int expertRejectedTranslations = translatedSentenceRepository.countAllByBatchDetailsIdAndSecondReview(batchDetail.getBatchDetailsId(), StatusTypes.REJECTED);
 
             int audiosRecorded = voiceRepository.countAllByTranslatedSentenceBatchDetails_BatchDetailsId(batchDetail.getBatchDetailsId());
 
             int approvedAudios =
                     voiceRepository.countAllByStatusAndTranslatedSentenceBatchDetailsId(
-                            StatusTypes.approved, batchDetail.getBatchDetailsId()
+                            StatusTypes.APPROVED, batchDetail.getBatchDetailsId()
                     );
 
             int rejectedAudios = voiceRepository.countAllByStatusAndTranslatedSentenceBatchDetailsId(
-                    StatusTypes.rejected, batchDetail.getBatchDetailsId());
+                    StatusTypes.REJECTED, batchDetail.getBatchDetailsId());
 
             batchDetailsStats.setSentencesTranslated(translatedSentences);
             batchDetailsStats.setSentencesApproved(approvedTranslations);

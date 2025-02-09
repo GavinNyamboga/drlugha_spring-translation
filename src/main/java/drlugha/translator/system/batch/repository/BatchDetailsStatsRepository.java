@@ -6,10 +6,13 @@ import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
 import drlugha.translator.system.batch.projections.*;
 import drlugha.translator.system.stats.dto.BatchDetailsStatsMapping;
 import drlugha.translator.system.stats.dto.TotalUserStatsDto;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.util.Date;
 import java.util.List;
@@ -177,228 +180,230 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
     @Query("SELECT b FROM BatchDetailsStatsEntity b WHERE b.batchDetails.batch.batchType = :batchType and b.batchDetails.batch.fromFeedback=:fromFeedback")
     List<BatchDetailsStatsEntity> findAllByBatchTypeAndFromFeedback(BatchType batchType, YesNo fromFeedback, Sort by);
 
-
-    @Query(value = "SELECT d.batch_details_id                      AS batchDetailsId," +
+    @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
+            "                              COUNT(s.sentence_id)                AS numberOfSentences," +
+            "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
+            "                              SUM(IF(ts.review_status = 0, 1, 0)) AS sentencesApproved," +
+            "                              SUM(IF(ts.review_status = 2, 1, 0)) AS sentencesRejected," +
+            "                              SUM(IF(ts.second_review = 0, 1, 0)) AS sentencesExpertApproved," +
+            "                              SUM(IF(ts.second_review = 2, 1, 0)) AS sentencesExpertRejected" +
+            "                       FROM batch_details bd" +
+            "                                JOIN batches b ON bd.batch_id = b.batch_no" +
+            "                                JOIN sentences s ON s.batch_no = b.batch_no AND s.deletion_status = 0" +
+            "                                LEFT JOIN translated_sentence ts" +
+            "                                          ON s.sentence_id = ts.sentence_id" +
+            "                                              AND ts.batch_details_id = bd.batch_details_id" +
+            "                                              AND ts.deletion_status = 0" +
+            "                       WHERE b.deletion_status = 0" +
+            "                         AND b.batch_type = 'TEXT'" +
+            "                         AND b.from_feedback = 'NO'" +
+            "                         AND bd.deletion_status = 0" +
+            "                       GROUP BY bd.batch_details_id)," +
+            "     UserAssignments AS (SELECT ua.batch_details_id," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_TRANSLATOR' THEN u.username END)      AS translator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_VERIFIER' THEN u.username END)        AS moderator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u.username END) AS expert," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_VERIFIER' THEN u.username END)       AS audioModerator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_RECORDER' THEN u.username END)       AS recorder" +
+            "                         FROM batch_user_assignments ua" +
+            "                                  LEFT JOIN users u ON ua.user_id = u.user_id" +
+            "                         WHERE ua.batch_role IN" +
+            "                               ('TEXT_TRANSLATOR', 'TEXT_VERIFIER', 'EXPERT_TEXT_REVIEWER', 'AUDIO_VERIFIER'," +
+            "                                'AUDIO_RECORDER')" +
+            "                         GROUP BY ua.batch_details_id)," +
+            "     AudioStats AS (SELECT batch_details_id," +
+            "                           COUNT(voice_id)           AS audiosRecorded," +
+            "                           SUM(IF(status = 0, 1, 0)) AS audiosApproved," +
+            "                           SUM(IF(status = 2, 1, 0)) AS audiosRejected" +
+            "                    FROM voice" +
+            "                    WHERE batch_details_id IS NOT NULL" +
+            "                    GROUP BY batch_details_id) " +
+            "SELECT SQL_CALC_FOUND_ROWS d.batch_details_id                      AS batchDetailsId," +
             "       b.batch_no                              AS batchNo," +
             "       b.source                                AS source," +
-            "       l.name                                  AS language," +
+            "       l.name                                  AS 'language'," +
             "       d.batch_status                          AS status," +
-            "       coalesce(ss.numberOfSentences, 0)       as numberOfSentences," +
-            "       coalesce(ss.sentencesTranslated, 0)     as sentencesTranslated," +
-            "       coalesce(ss.sentencesApproved, 0)       as sentencesApproved," +
-            "       coalesce(ss.sentencesRejected, 0)       as sentencesRejected," +
-            "       coalesce(ss.sentencesExpertApproved, 0) as sentencesExpertApproved," +
-            "       coalesce(ss.sentencesExpertRejected, 0) as sentencesExpertRejected," +
-            "       coalesce(aud.audiosRecorded, 0)         as audiosRecorded," +
-            "       coalesce(aud.audiosApproved, 0)         as audiosApproved," +
-            "       coalesce(aud.audiosRejected, 0)         as audiosRejected," +
+            "       COALESCE(ss.numberOfSentences, 0)       AS numberOfSentences," +
+            "       COALESCE(ss.sentencesTranslated, 0)     AS sentencesTranslated," +
+            "       COALESCE(ss.sentencesApproved, 0)       AS sentencesApproved," +
+            "       COALESCE(ss.sentencesRejected, 0)       AS sentencesRejected," +
+            "       COALESCE(ss.sentencesExpertApproved, 0) AS sentencesExpertApproved," +
+            "       COALESCE(ss.sentencesExpertRejected, 0) AS sentencesExpertRejected," +
+            "       COALESCE(aud.audiosRecorded, 0)         AS audiosRecorded," +
+            "       COALESCE(aud.audiosApproved, 0)         AS audiosApproved," +
+            "       COALESCE(aud.audiosRejected, 0)         AS audiosRejected," +
+            "       ua.translator," +
+            "       ua.moderator," +
+            "       ua.expert," +
+            "       ua.recorder," +
+            "       ua.audioModerator," +
+            "       COUNT(*) OVER() AS total_count " + // This is crucial for pagination
+            "FROM batch_details d" +
+            "         JOIN batches b ON d.batch_id = b.batch_no" +
+            "         JOIN languages l ON d.language = l.language_id" +
+            "         LEFT JOIN SentenceStats ss ON d.batch_details_id = ss.batch_details_id" +
+            "         LEFT JOIN UserAssignments ua ON d.batch_details_id = ua.batch_details_id" +
+            "         LEFT JOIN AudioStats aud ON d.batch_details_id = aud.batch_details_id " +
+            "WHERE b.deletion_status = 0" +
+            "  AND d.deletion_status = 0" +
+            "  AND b.batch_type = 'TEXT'" +
+            "  AND (:languageId IS NULL OR d.language = :languageId) " +
+            "  AND (:status IS NULL OR d.batch_status = :status) " +
+            "  AND b.from_feedback = 'NO' " +
+            "ORDER BY d.batch_id " +
+            "LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}",
+            countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
+    Page<BatchDetailsStatsMapping> getBatchDetailsStatsText(Pageable pageable, @Param("languageId") Long languageId,
+                                                            @Param("status") Integer status);
+
+    @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
+            "                              COUNT(s.sentence_id)                AS numberOfSentences," +
+            "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
+            "                              SUM(IF(ts.review_status = 0, 1, 0)) AS sentencesApproved," +
+            "                              SUM(IF(ts.review_status = 2, 1, 0)) AS sentencesRejected," +
+            "                              SUM(IF(ts.second_review = 0, 1, 0)) AS sentencesExpertApproved," +
+            "                              SUM(IF(ts.second_review = 2, 1, 0)) AS sentencesExpertRejected" +
+            "                       FROM batch_details bd" +
+            "                                JOIN batches b ON bd.batch_id = b.batch_no" +
+            "                                JOIN sentences s ON s.batch_no = b.batch_no AND s.deletion_status = 0" +
+            "                                LEFT JOIN translated_sentence ts" +
+            "                                          ON s.sentence_id = ts.sentence_id" +
+            "                                              AND ts.batch_details_id = bd.batch_details_id" +
+            "                                              AND ts.deletion_status = 0" +
+            "                       WHERE b.deletion_status = 0" +
+            "                         AND b.batch_type = 'TEXT'" +
+            "                         AND b.from_feedback = 'NO'" +
+            "                         AND bd.deletion_status = 0" +
+            "                       GROUP BY bd.batch_details_id)," +
+            "     UserAssignments AS (SELECT ua.batch_details_id," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_TRANSLATOR' THEN u.username END)      AS translator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_VERIFIER' THEN u.username END)        AS moderator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u.username END) AS expert," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_VERIFIER' THEN u.username END)       AS audioModerator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_RECORDER' THEN u.username END)       AS recorder" +
+            "                         FROM batch_user_assignments ua" +
+            "                                  LEFT JOIN users u ON ua.user_id = u.user_id" +
+            "                         WHERE ua.batch_role IN" +
+            "                               ('TEXT_TRANSLATOR', 'TEXT_VERIFIER', 'EXPERT_TEXT_REVIEWER', 'AUDIO_VERIFIER'," +
+            "                                'AUDIO_RECORDER')" +
+            "                         GROUP BY ua.batch_details_id)," +
+            "     AudioStats AS (SELECT batch_details_id," +
+            "                           COUNT(voice_id)           AS audiosRecorded," +
+            "                           SUM(IF(status = 0, 1, 0)) AS audiosApproved," +
+            "                           SUM(IF(status = 2, 1, 0)) AS audiosRejected" +
+            "                    FROM voice" +
+            "                    WHERE batch_details_id IS NOT NULL" +
+            "                    GROUP BY batch_details_id) " +
+            "SELECT d.batch_details_id                      AS batchDetailsId," +
+            "       b.batch_no                              AS batchNo," +
+            "       b.source                                AS source," +
+            "       l.name                                  AS 'language'," +
+            "       d.batch_status                          AS status," +
+            "       COALESCE(ss.numberOfSentences, 0)       AS numberOfSentences," +
+            "       COALESCE(ss.sentencesTranslated, 0)     AS sentencesTranslated," +
+            "       COALESCE(ss.sentencesApproved, 0)       AS sentencesApproved," +
+            "       COALESCE(ss.sentencesRejected, 0)       AS sentencesRejected," +
+            "       COALESCE(ss.sentencesExpertApproved, 0) AS sentencesExpertApproved," +
+            "       COALESCE(ss.sentencesExpertRejected, 0) AS sentencesExpertRejected," +
+            "       COALESCE(aud.audiosRecorded, 0)         AS audiosRecorded," +
+            "       COALESCE(aud.audiosApproved, 0)         AS audiosApproved," +
+            "       COALESCE(aud.audiosRejected, 0)         AS audiosRejected," +
             "       ua.translator," +
             "       ua.moderator," +
             "       ua.expert," +
             "       ua.recorder," +
             "       ua.audioModerator " +
             "FROM batch_details d" +
-            "         INNER JOIN batches b ON d.batch_id = b.batch_no" +
-            "         INNER JOIN languages l ON d.language = l.language_id" +
-            "         LEFT JOIN (SELECT ts.batch_details_id," +
-            "                           COUNT(DISTINCT s.sentence_id)                              AS numberOfSentences," +
-            "                           COUNT(DISTINCT ts.translated_sentence_id)                  AS sentencesTranslated," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesRejected," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertRejected" +
-            "                    FROM sentences s" +
-            "                             LEFT JOIN translated_sentence ts ON s.sentence_id = ts.sentence_id" +
-            "                    WHERE s.deletion_status = 0" +
-            "                      and ts.deletion_status = 0" +
-            "                    GROUP BY ts.batch_details_id) ss ON d.batch_details_id = ss.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua2.user_id                                                                 AS recorder_id," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_TRANSLATOR' THEN u1.username END)      AS translator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_VERIFIER' THEN u1.username END)        AS moderator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u1.username END) AS expert," +
-            "                           u2.username                                                                 AS recorder," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'AUDIO_VERIFIER' THEN u1.username END)       AS audioModerator" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN batch_user_assignments ua1 ON ua.batch_details_id = ua1.batch_details_id" +
-            "                             LEFT JOIN users u1 ON ua1.user_id = u1.user_id" +
-            "                             LEFT JOIN batch_user_assignments ua2 ON ua.batch_details_id = ua2.batch_details_id AND" +
-            "                                                                     ua2.batch_role = 'AUDIO_RECORDER'" +
-            "                             LEFT JOIN users u2 ON ua2.user_id = u2.user_id" +
-            "                    GROUP BY ua.batch_details_id, ua2.user_id) ua ON d.batch_details_id = ua.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua.user_id," +
-            "                           COUNT(DISTINCT v.voice_id)                                 AS audiosRecorded," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 0 THEN v.voice_id END) AS audiosApproved," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 2 THEN v.voice_id END) AS audiosRejected" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN voice v ON v.user_id = ua.user_id" +
-            "                        AND v.batch_details_id = ua.batch_details_id" +
-            "                    WHERE ua.batch_role = 'AUDIO_RECORDER'" +
-            "                    GROUP BY ua.batch_details_id, ua.user_id) aud ON d.batch_details_id = aud.batch_details_id" +
-            "    AND aud.user_id = ua.recorder_id " +
+            "         JOIN batches b ON d.batch_id = b.batch_no" +
+            "         JOIN languages l ON d.language = l.language_id" +
+            "         LEFT JOIN SentenceStats ss ON d.batch_details_id = ss.batch_details_id" +
+            "         LEFT JOIN UserAssignments ua ON d.batch_details_id = ua.batch_details_id" +
+            "         LEFT JOIN AudioStats aud ON d.batch_details_id = aud.batch_details_id " +
             "WHERE b.deletion_status = 0" +
-            "  and d.deletion_status = 0 " +
-            " and b.batch_type='TEXT'" +
-            " and b.from_feedback ='NO' " +
-            "ORDER BY d.batch_id, ua.recorder", nativeQuery = true)
-    List<BatchDetailsStatsMapping> getBatchDetailsStatsText();
+            "  AND d.deletion_status = 0" +
+            "  AND b.batch_type = 'TEXT'" +
+            "  AND b.from_feedback ='YES' " +
+            "  AND (:languageId IS NULL OR d.language = :languageId) " +
+            "  AND (:status IS NULL OR d.batch_status = :status) " +
+            "ORDER BY d.batch_id " +
+            "LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}",
+            countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
+    Page<BatchDetailsStatsMapping> getBatchDetailsStatsFeedbackText(Pageable pageable, @Param("languageId") Long languageId,
+                                                                    @Param("status") Integer status);
 
 
-    @Query(value = "SELECT d.batch_details_id                      AS batchDetailsId," +
+    @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
+            "                              COUNT(s.sentence_id)                AS numberOfSentences," +
+            "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
+            "                              SUM(IF(ts.review_status = 0, 1, 0)) AS sentencesApproved," +
+            "                              SUM(IF(ts.review_status = 2, 1, 0)) AS sentencesRejected," +
+            "                              SUM(IF(ts.second_review = 0, 1, 0)) AS sentencesExpertApproved," +
+            "                              SUM(IF(ts.second_review = 2, 1, 0)) AS sentencesExpertRejected" +
+            "                       FROM batch_details bd" +
+            "                                JOIN batches b ON bd.batch_id = b.batch_no" +
+            "                                JOIN sentences s ON s.batch_no = b.batch_no AND s.deletion_status = 0" +
+            "                                LEFT JOIN translated_sentence ts" +
+            "                                          ON s.sentence_id = ts.sentence_id" +
+            "                                              AND ts.batch_details_id = bd.batch_details_id" +
+            "                                              AND ts.deletion_status = 0" +
+            "                       WHERE b.deletion_status = 0" +
+            "                         AND b.batch_type = 'TEXT'" +
+            "                         AND b.from_feedback = 'NO'" +
+            "                         AND bd.deletion_status = 0" +
+            "                       GROUP BY bd.batch_details_id)," +
+            "     UserAssignments AS (SELECT ua.batch_details_id," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_TRANSLATOR' THEN u.username END)      AS translator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'TEXT_VERIFIER' THEN u.username END)        AS moderator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u.username END) AS expert," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_VERIFIER' THEN u.username END)       AS audioModerator," +
+            "                                MAX(CASE WHEN ua.batch_role = 'AUDIO_RECORDER' THEN u.username END)       AS recorder" +
+            "                         FROM batch_user_assignments ua" +
+            "                                  LEFT JOIN users u ON ua.user_id = u.user_id" +
+            "                         WHERE ua.batch_role IN" +
+            "                               ('TEXT_TRANSLATOR', 'TEXT_VERIFIER', 'EXPERT_TEXT_REVIEWER', 'AUDIO_VERIFIER'," +
+            "                                'AUDIO_RECORDER')" +
+            "                         GROUP BY ua.batch_details_id)," +
+            "     AudioStats AS (SELECT batch_details_id," +
+            "                           COUNT(voice_id)           AS audiosRecorded," +
+            "                           SUM(IF(status = 0, 1, 0)) AS audiosApproved," +
+            "                           SUM(IF(status = 2, 1, 0)) AS audiosRejected" +
+            "                    FROM voice" +
+            "                    WHERE batch_details_id IS NOT NULL" +
+            "                    GROUP BY batch_details_id) " +
+            "SELECT d.batch_details_id                      AS batchDetailsId," +
             "       b.batch_no                              AS batchNo," +
             "       b.source                                AS source," +
-            "       l.name                                  AS language," +
+            "       l.name                                  AS 'language'," +
             "       d.batch_status                          AS status," +
-            "       coalesce(ss.numberOfSentences, 0)       as numberOfSentences," +
-            "       coalesce(ss.sentencesTranslated, 0)     as sentencesTranslated," +
-            "       coalesce(ss.sentencesApproved, 0)       as sentencesApproved," +
-            "       coalesce(ss.sentencesRejected, 0)       as sentencesRejected," +
-            "       coalesce(ss.sentencesExpertApproved, 0) as sentencesExpertApproved," +
-            "       coalesce(ss.sentencesExpertRejected, 0) as sentencesExpertRejected," +
-            "       coalesce(aud.audiosRecorded, 0)         as audiosRecorded," +
-            "       coalesce(aud.audiosApproved, 0)         as audiosApproved," +
-            "       coalesce(aud.audiosRejected, 0)         as audiosRejected," +
+            "       COALESCE(ss.numberOfSentences, 0)       AS numberOfSentences," +
+            "       COALESCE(ss.sentencesTranslated, 0)     AS sentencesTranslated," +
+            "       COALESCE(ss.sentencesApproved, 0)       AS sentencesApproved," +
+            "       COALESCE(ss.sentencesRejected, 0)       AS sentencesRejected," +
+            "       COALESCE(ss.sentencesExpertApproved, 0) AS sentencesExpertApproved," +
+            "       COALESCE(ss.sentencesExpertRejected, 0) AS sentencesExpertRejected," +
+            "       COALESCE(aud.audiosRecorded, 0)         AS audiosRecorded," +
+            "       COALESCE(aud.audiosApproved, 0)         AS audiosApproved," +
+            "       COALESCE(aud.audiosRejected, 0)         AS audiosRejected," +
             "       ua.translator," +
             "       ua.moderator," +
             "       ua.expert," +
             "       ua.recorder," +
             "       ua.audioModerator " +
             "FROM batch_details d" +
-            "         INNER JOIN batches b ON d.batch_id = b.batch_no" +
-            "         INNER JOIN languages l ON d.language = l.language_id" +
-            "         LEFT JOIN (SELECT ts.batch_details_id," +
-            "                           COUNT(DISTINCT s.sentence_id)                              AS numberOfSentences," +
-            "                           COUNT(DISTINCT ts.translated_sentence_id)                  AS sentencesTranslated," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesRejected," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertRejected" +
-            "                    FROM sentences s" +
-            "                             LEFT JOIN translated_sentence ts ON s.sentence_id = ts.sentence_id" +
-            "                    WHERE s.deletion_status = 0" +
-            "                      and ts.deletion_status = 0" +
-            "                    GROUP BY ts.batch_details_id) ss ON d.batch_details_id = ss.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua2.user_id                                                                 AS recorder_id," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_TRANSLATOR' THEN u1.username END)      AS translator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_VERIFIER' THEN u1.username END)        AS moderator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u1.username END) AS expert," +
-            "                           u2.username                                                                 AS recorder," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'AUDIO_VERIFIER' THEN u1.username END)       AS audioModerator" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN batch_user_assignments ua1 ON ua.batch_details_id = ua1.batch_details_id" +
-            "                             LEFT JOIN users u1 ON ua1.user_id = u1.user_id" +
-            "                             LEFT JOIN batch_user_assignments ua2 ON ua.batch_details_id = ua2.batch_details_id AND" +
-            "                                                                     ua2.batch_role = 'AUDIO_RECORDER'" +
-            "                             LEFT JOIN users u2 ON ua2.user_id = u2.user_id" +
-            "                    GROUP BY ua.batch_details_id, ua2.user_id) ua ON d.batch_details_id = ua.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua.user_id," +
-            "                           COUNT(DISTINCT v.voice_id)                                 AS audiosRecorded," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 0 THEN v.voice_id END) AS audiosApproved," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 2 THEN v.voice_id END) AS audiosRejected" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN voice v ON v.user_id = ua.user_id" +
-            "                        AND v.batch_details_id = ua.batch_details_id" +
-            "                    WHERE ua.batch_role = 'AUDIO_RECORDER'" +
-            "                    GROUP BY ua.batch_details_id, ua.user_id) aud ON d.batch_details_id = aud.batch_details_id" +
-            "    AND aud.user_id = ua.recorder_id " +
+            "         JOIN batches b ON d.batch_id = b.batch_no" +
+            "         JOIN languages l ON d.language = l.language_id" +
+            "         LEFT JOIN SentenceStats ss ON d.batch_details_id = ss.batch_details_id" +
+            "         LEFT JOIN UserAssignments ua ON d.batch_details_id = ua.batch_details_id" +
+            "         LEFT JOIN AudioStats aud ON d.batch_details_id = aud.batch_details_id " +
             "WHERE b.deletion_status = 0" +
-            "  and d.deletion_status = 0 " +
-            " and b.batch_type='TEXT'" +
-            " and b.from_feedback ='YES' " +
-            "ORDER BY d.batch_id, ua.recorder", nativeQuery = true)
-    List<BatchDetailsStatsMapping> getBatchDetailsStatsFeedbackText();
-
-
-    @Query(value = "SELECT d.batch_details_id                      AS batchDetailsId," +
-            "       b.batch_no                              AS batchNo," +
-            "       b.source                                AS source," +
-            "       l.name                                  AS language," +
-            "       d.batch_status                          AS status," +
-            "       coalesce(ss.numberOfSentences, 0)       as numberOfSentences," +
-            "       coalesce(ss.sentencesTranslated, 0)     as sentencesTranslated," +
-            "       coalesce(ss.sentencesApproved, 0)       as sentencesApproved," +
-            "       coalesce(ss.sentencesRejected, 0)       as sentencesRejected," +
-            "       coalesce(ss.sentencesExpertApproved, 0) as sentencesExpertApproved," +
-            "       coalesce(ss.sentencesExpertRejected, 0) as sentencesExpertRejected," +
-            "       coalesce(aud.audiosRecorded, 0)         as audiosRecorded," +
-            "       coalesce(aud.audiosApproved, 0)         as audiosApproved," +
-            "       coalesce(aud.audiosRejected, 0)         as audiosRejected," +
-            "       ua.translator," +
-            "       ua.moderator," +
-            "       ua.expert," +
-            "       ua.recorder," +
-            "       ua.audioModerator " +
-            "FROM batch_details d" +
-            "         INNER JOIN batches b ON d.batch_id = b.batch_no" +
-            "         INNER JOIN languages l ON d.language = l.language_id" +
-            "         LEFT JOIN (SELECT ts.batch_details_id," +
-            "                           COUNT(DISTINCT s.sentence_id)                              AS numberOfSentences," +
-            "                           COUNT(DISTINCT ts.translated_sentence_id)                  AS sentencesTranslated," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.review_status = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesRejected," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 0" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertApproved," +
-            "                           COUNT(DISTINCT CASE" +
-            "                                              WHEN ts.second_review = 2" +
-            "                                                  THEN ts.translated_sentence_id END) AS sentencesExpertRejected" +
-            "                    FROM sentences s" +
-            "                             LEFT JOIN translated_sentence ts ON s.sentence_id = ts.sentence_id" +
-            "                    WHERE s.deletion_status = 0" +
-            "                      and ts.deletion_status = 0" +
-            "                    GROUP BY ts.batch_details_id) ss ON d.batch_details_id = ss.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua2.user_id                                                                 AS recorder_id," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_TRANSLATOR' THEN u1.username END)      AS translator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'TEXT_VERIFIER' THEN u1.username END)        AS moderator," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'EXPERT_TEXT_REVIEWER' THEN u1.username END) AS expert," +
-            "                           u2.username                                                                 AS recorder," +
-            "                           MAX(CASE WHEN ua1.batch_role = 'AUDIO_VERIFIER' THEN u1.username END)       AS audioModerator" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN batch_user_assignments ua1 ON ua.batch_details_id = ua1.batch_details_id" +
-            "                             LEFT JOIN users u1 ON ua1.user_id = u1.user_id" +
-            "                             LEFT JOIN batch_user_assignments ua2 ON ua.batch_details_id = ua2.batch_details_id AND" +
-            "                                                                     ua2.batch_role = 'AUDIO_RECORDER'" +
-            "                             LEFT JOIN users u2 ON ua2.user_id = u2.user_id" +
-            "                    GROUP BY ua.batch_details_id, ua2.user_id) ua ON d.batch_details_id = ua.batch_details_id" +
-            "         LEFT JOIN (SELECT ua.batch_details_id," +
-            "                           ua.user_id," +
-            "                           COUNT(DISTINCT v.voice_id)                                 AS audiosRecorded," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 0 THEN v.voice_id END) AS audiosApproved," +
-            "                           COUNT(DISTINCT CASE WHEN v.status = 2 THEN v.voice_id END) AS audiosRejected" +
-            "                    FROM batch_user_assignments ua" +
-            "                             LEFT JOIN voice v ON v.user_id = ua.user_id" +
-            "                        AND v.batch_details_id = ua.batch_details_id" +
-            "                    WHERE ua.batch_role = 'AUDIO_RECORDER'" +
-            "                    GROUP BY ua.batch_details_id, ua.user_id) aud ON d.batch_details_id = aud.batch_details_id" +
-            "    AND aud.user_id = ua.recorder_id " +
-            "WHERE b.deletion_status = 0" +
-            "  and d.deletion_status = 0 " +
-            " and b.batch_type='AUDIO'" +
-            " and b.from_feedback ='NO' " +
-            "ORDER BY d.batch_id, ua.recorder", nativeQuery = true)
-    List<BatchDetailsStatsMapping> getBatchDetailsStatsAudio();
+            "  AND d.deletion_status = 0" +
+            "  AND b.batch_type = 'AUDIO'" +
+            "  AND b.from_feedback = 'NO' " +
+            "  AND (:languageId IS NULL OR d.language = :languageId) " +
+            "  AND (:status IS NULL OR d.batch_status = :status) " +
+            "ORDER BY d.batch_id " +
+            "LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}",
+            countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
+    Page<BatchDetailsStatsMapping> getBatchDetailsStatsAudio(Pageable pageable, @Param("languageId") Long languageId,
+                                                             @Param("status") Integer status);
 }

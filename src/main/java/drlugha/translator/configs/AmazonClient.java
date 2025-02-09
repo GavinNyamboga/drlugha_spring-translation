@@ -142,14 +142,14 @@ public class AmazonClient {
         uploadFileTos3bucket(fileName, multipartFile.getInputStream());
 
         fileUrl = generatePresignedUrl(fileName);
-        translatedSentenceEntity.setRecordedStatus(StatusTypes.recorded);
+        translatedSentenceEntity.setRecordedStatus(StatusTypes.RECORDED);
         voice.setTranslatedSentenceId(translatedSentenceId);
         voice.setTranslatedSentence(translatedSentenceEntity);
         voice.setBatchDetailsId(translatedSentenceEntity.getBatchDetailsId());
         voice.setFileUrl(storeFileUrl);
         voice.setDateCreated(new Date());
         voice.setDateModified(new Date());
-        voice.setStatus(StatusTypes.unreviewed);
+        voice.setStatus(StatusTypes.UNREVIEWED);
         voice.setPresignedUrl("");
         if (voiceId != null) {
             voice.setVoiceId(voiceId);
@@ -268,11 +268,11 @@ public class AmazonClient {
 
             //filter these by reviewed and unreviewed
             List<VoiceEntity> unreviewed = allVoiceEntities.stream()
-                    .filter(v -> v.getStatus() == StatusTypes.unreviewed)
+                    .filter(v -> v.getStatus() == StatusTypes.UNREVIEWED)
                     .collect(Collectors.toList());
 
             List<VoiceEntity> reviewed = allVoiceEntities.stream()
-                    .filter(v -> v.getStatus() == StatusTypes.approved || v.getStatus() == StatusTypes.rejected)
+                    .filter(v -> v.getStatus() == StatusTypes.APPROVED || v.getStatus() == StatusTypes.REJECTED)
                     .collect(Collectors.toList());
 
             // Fetch unreviewed audios
@@ -338,7 +338,7 @@ public class AmazonClient {
 
                 for (VoiceEntity voiceEntity : voiceEntities) {
 
-                    Boolean isAccepted = (voiceEntity.getStatus() == StatusTypes.unreviewed) ? null : (voiceEntity.getStatus() == StatusTypes.approved);
+                    Boolean isAccepted = (voiceEntity.getStatus() == StatusTypes.UNREVIEWED) ? null : (voiceEntity.getStatus() == StatusTypes.APPROVED);
 
                     String presignedUrl = generatePresignedUrl(voiceEntity.getFileUrl());
                     voiceEntity.setPresignedUrl(presignedUrl);

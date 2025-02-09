@@ -1,7 +1,7 @@
 package drlugha.translator.system.batch.model;
 
-import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.shared.model.BaseEntity;
+import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.user.model.User;
 import lombok.*;
 
@@ -13,9 +13,12 @@ import javax.persistence.*;
 @AllArgsConstructor
 @NoArgsConstructor
 @Entity
-@Table(name = "batch_user_assignments", uniqueConstraints = {
-        @UniqueConstraint(columnNames = {"user_id", "batch_details_id", "batch_role"})
-})
+@Table(name = "batch_user_assignments",
+        uniqueConstraints = {
+                @UniqueConstraint(columnNames = {"user_id", "batch_details_id", "batch_role"})},
+        indexes = {
+                @Index(name = "idx_batch_user_assignments", columnList = "batch_details_id, batch_role, user_id")
+        })
 public class BatchDetailsUserAssignment extends BaseEntity {
 
     @ManyToOne(fetch = FetchType.LAZY)

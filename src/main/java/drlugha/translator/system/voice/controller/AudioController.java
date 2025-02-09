@@ -1,16 +1,16 @@
 package drlugha.translator.system.voice.controller;
 
+import drlugha.translator.configs.AmazonClient;
 import drlugha.translator.shared.controller.BaseController;
+import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.sentence.dto.SentenceToRecordDto;
 import drlugha.translator.system.sentence.dto.VoicesToReviewDto;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
-import drlugha.translator.system.voice.model.VoiceEntity;
-import drlugha.translator.system.batch.enums.BatchStatus;
-import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.system.sentence.repository.TranslatedSentenceRepository;
+import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.system.voice.repository.VoiceRepository;
-import drlugha.translator.shared.dto.ResponseMessage;
-import drlugha.translator.configs.AmazonClient;
 import drlugha.translator.system.voice.service.VoiceService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
@@ -38,7 +38,7 @@ public class AudioController extends BaseController {
         try {
             translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setAssignedRecorderId(recorderId));
             translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setAssignedAudioReviewerId(audioReviewerId));
-            translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setRecordedStatus(StatusTypes.assigned));
+            translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setRecordedStatus(StatusTypes.ASSIGNED));
             this.translatedRepo.saveAll(translatedSentences);
             return new ResponseMessage("Updated list successfully");
         } catch (Exception e) {
@@ -90,12 +90,12 @@ public class AudioController extends BaseController {
 
     @PutMapping({"/approve/voice/{voiceId}"})
     public ResponseEntity<ResponseMessage> approveVoiceRecording(@PathVariable Long voiceId) {
-        return this.voiceSvc.approveVoiceRecording(voiceId);
+        return entity(voiceSvc.approveVoiceRecording(voiceId));
     }
 
     @PutMapping({"/reject/voice/{voiceId}"})
     public ResponseEntity<ResponseMessage> rejectVoiceRecording(@PathVariable Long voiceId) {
-        return this.voiceSvc.rejectVoiceRecording(voiceId);
+        return entity(voiceSvc.rejectVoiceRecording(voiceId));
     }
 
     @PostMapping("/storage/uploadFile/{translatedSentenceId}")

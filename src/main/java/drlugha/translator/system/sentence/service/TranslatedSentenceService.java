@@ -142,7 +142,7 @@ public class TranslatedSentenceService {
 
             translatedSentence.setLanguage(batchDetails.getLanguage());
             translatedSentence.setBatchDetailsId(translateSentenceDto.getBatchDetailsId());
-            translatedSentence.setReviewStatus(StatusTypes.unreviewed);
+            translatedSentence.setReviewStatus(StatusTypes.UNREVIEWED);
             translatedSentence.setSentenceId(sentenceId);
             if (translatedSentence.getTranslatedSentenceId() == null) { //Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(translateSentenceDto.getBatchDetailsId());
@@ -166,7 +166,7 @@ public class TranslatedSentenceService {
             translatedStnc.setTranslatedText(translatedSentence.getTranslatedText());
         }
 
-        translatedStnc.setReviewStatus(StatusTypes.unreviewed);
+        translatedStnc.setReviewStatus(StatusTypes.UNREVIEWED);
         return translatedRepo.save(translatedStnc);
     }
 
@@ -176,9 +176,9 @@ public class TranslatedSentenceService {
         TranslatedSentenceEntity translatedStnc = translatedRepo.findById(id).get();
 //		AssignedSentencesEntity assignedSentence = assignmentRepo.findById(id).get();
 
-        translatedStnc.setReviewStatus(StatusTypes.approved);
-        if (translatedStnc.getSecondReview() == StatusTypes.rejected)
-            translatedStnc.setSecondReview(StatusTypes.unreviewed);
+        translatedStnc.setReviewStatus(StatusTypes.APPROVED);
+        if (translatedStnc.getSecondReview() == StatusTypes.REJECTED)
+            translatedStnc.setSecondReview(StatusTypes.UNREVIEWED);
         TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
 
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(updatedSentence.getBatchDetailsId());
@@ -220,7 +220,7 @@ public class TranslatedSentenceService {
         if (!translatedStnc.getBatchDetails().getTranslationVerifiedBy().getUsername().matches(username)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseMessage("You are unauthorized to reject this translation"));
         }
-        translatedStnc.setReviewStatus(StatusTypes.rejected);
+        translatedStnc.setReviewStatus(StatusTypes.REJECTED);
 
         ModeratorCommentEntity moderatorCommentEntity =
                 moderatorCommentRepo.findAllByTranslatedSentence_TranslatedSentenceId(translatedStnc.getTranslatedSentenceId());
@@ -272,7 +272,7 @@ public class TranslatedSentenceService {
 
         TranslatedSentenceEntity translatedStnc = translatedRepo.findById(id).get();
 
-        translatedStnc.setSecondReview(StatusTypes.approved);
+        translatedStnc.setSecondReview(StatusTypes.APPROVED);
 //		translatedStnc.setSeconds(timeTaken.getSeconds());
 
         TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
@@ -319,7 +319,7 @@ public class TranslatedSentenceService {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseMessage("You are unauthorized to reject this translation"));
         }
 
-        translatedStnc.setSecondReview(StatusTypes.rejected);
+        translatedStnc.setSecondReview(StatusTypes.REJECTED);
 //		translatedStnc.setSeconds(timeTaken.getSeconds());
 
         ExpertCommentEntity expertCommentEntity =
@@ -379,9 +379,9 @@ public class TranslatedSentenceService {
             String moderatorComment = "";
             String expertComment = "";
 
-            if (translatedSentence.getReviewStatus() == StatusTypes.rejected && moderatorCommentEntity != null)
+            if (translatedSentence.getReviewStatus() == StatusTypes.REJECTED && moderatorCommentEntity != null)
                 moderatorComment = moderatorCommentEntity.getComment();
-            if (translatedSentence.getSecondReview() == StatusTypes.rejected && expertCommentEntity != null)
+            if (translatedSentence.getSecondReview() == StatusTypes.REJECTED && expertCommentEntity != null)
                 expertComment = expertCommentEntity.getComment();
 
             translatedSentence.getSentence().setAudioLink(amazonClient.generatePresignedUrl(translatedSentence.getSentence().getAudioLink()));

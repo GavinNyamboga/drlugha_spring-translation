@@ -3,6 +3,9 @@ package drlugha.translator.system.voice.service;
 import drlugha.translator.configs.AmazonClient;
 import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.shared.enums.YesNo;
+import drlugha.translator.shared.exception.BadRequestException;
+import drlugha.translator.shared.exception.NotFoundException;
 import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
@@ -87,7 +90,7 @@ public class VoiceService {
             voice.setDateModified(new Date());
         }
         if (voice.getStatus() == null) {
-            voice.setStatus(StatusTypes.unreviewed);
+            voice.setStatus(StatusTypes.UNREVIEWED);
         }
 
 
@@ -129,7 +132,7 @@ public class VoiceService {
             voice.setDateModified(new Date());
         }
         if (voice.getStatus() == null) {
-            voice.setStatus(StatusTypes.unreviewed);
+            voice.setStatus(StatusTypes.UNREVIEWED);
         }
 
 
@@ -183,10 +186,10 @@ public class VoiceService {
                 recordedVoiceTasksDto = recordedVoiceTasks.stream()
                         .map(entity -> {
                             Boolean isAccepted;
-                            if (entity.getStatus() == StatusTypes.unreviewed)
+                            if (entity.getStatus() == StatusTypes.UNREVIEWED)
                                 isAccepted = null;
                             else {
-                                isAccepted = entity.getStatus() == StatusTypes.approved;
+                                isAccepted = entity.getStatus() == StatusTypes.APPROVED;
                             }
 
                             String presignedUrl = amazonClient.generatePresignedUrl(entity.getFileUrl());
@@ -209,9 +212,13 @@ public class VoiceService {
         return ResponseEntity.ok(sentenceToRecordDto);
     }
 
-    public ResponseEntity<ResponseMessage> approveVoiceRecording(Long voiceId) {
-        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).get();
-        voiceEntity.setStatus(StatusTypes.approved);
+    public ResponseMessage approveVoiceRecording(Long voiceId) {
+        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).orElse(null);
+        if (voiceEntity == null) {
+            throw new NotFoundException("Voice not found");
+        }
+        voiceEntity.setStatus(StatusTypes.APPROVED);
+        voiceEntity.setApproved(YesNo.YES);
         VoiceEntity updatedVoiceEntity = voiceRepo.save(voiceEntity);
         Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
@@ -233,12 +240,17 @@ public class VoiceService {
                 }
             }
         }
-        return ResponseEntity.ok(new ResponseMessage("Voice recording Approved"));
+        return new ResponseMessage("Voice recording Approved");
     }
 
-    public ResponseEntity<ResponseMessage> rejectVoiceRecording(Long voiceId) {
-        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).get();
-        voiceEntity.setStatus(StatusTypes.rejected);
+    public ResponseMessage rejectVoiceRecording(Long voiceId) {
+        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).orElse(null);
+        if (voiceEntity == null) {
+            throw new NotFoundException("Voice not found");
+        }
+
+        voiceEntity.setStatus(StatusTypes.REJECTED);
+        voiceEntity.setApproved(YesNo.NO);
         VoiceEntity updatedVoiceEntity = voiceRepo.save(voiceEntity);
 
         Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
@@ -259,7 +271,7 @@ public class VoiceService {
                 }
             }
         }
-        return ResponseEntity.ok(new ResponseMessage("Voice recording Rejected"));
+        return new ResponseMessage("Voice recording Rejected");
     }
 
     public List<TranslatedSentenceEntity> findVoiceTasks(Long batchDetailId) {

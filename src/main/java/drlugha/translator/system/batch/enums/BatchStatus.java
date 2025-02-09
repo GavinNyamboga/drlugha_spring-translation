@@ -29,8 +29,10 @@ public enum BatchStatus {
             return "Moderator Reviewed";
         } else if (this == BatchStatus.SECOND_VERIFICATION_DONE || this == BatchStatus.ASSIGNED_RECORDER) {
             return "Expert Reviewed";
-        } else if (this == BatchStatus.RECORDED || this == BatchStatus.ASSIGNED_AUDIO_VERIFIER) {
+        } else if (this == BatchStatus.RECORDED) {
             return "Audio Recorded";
+        } else if (this == BatchStatus.ASSIGNED_AUDIO_VERIFIER) {
+            return "Audio Assigned Verifier";
         } else if (this == BatchStatus.AUDIO_VERIFIED) {
             return "Audio Reviewed";
         } else {

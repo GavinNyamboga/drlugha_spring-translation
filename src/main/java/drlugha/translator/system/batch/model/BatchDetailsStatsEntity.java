@@ -24,7 +24,7 @@ public class BatchDetailsStatsEntity {
 
     @JsonIgnore
     @OneToOne
-    @JoinColumn(name = "batch_details_id", referencedColumnName = "batchDetailsId", unique = true)
+    @JoinColumn(name = "batch_details_id", referencedColumnName = "batch_details_id", unique = true)
     private BatchDetailsEntity batchDetails;
 
     private int sentencesTranslated;
