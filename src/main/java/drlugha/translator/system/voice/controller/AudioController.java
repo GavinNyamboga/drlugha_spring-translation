@@ -52,7 +52,7 @@ public class AudioController extends BaseController {
     }
 
     @GetMapping({"/recorder/tasks"})
-    public ResponseEntity<SentenceToRecordDto> usersAudioTasks(@RequestParam(defaultValue = "assignedRecorder") BatchStatus batchStatus,
+    public ResponseEntity<SentenceToRecordDto> usersAudioTasks(@RequestParam(name = "status", defaultValue = "ASSIGNED_RECORDER") BatchStatus batchStatus,
                                                                @RequestParam Long recorderId,
                                                                @RequestParam(required = false) Long batchDetailsId) {
         return this.voiceSvc.recorderAssignedTasks(recorderId, batchStatus, batchDetailsId);
