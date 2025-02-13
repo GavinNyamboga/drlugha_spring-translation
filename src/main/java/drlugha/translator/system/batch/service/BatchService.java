@@ -7,6 +7,7 @@ import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.shared.exception.GeneralException;
+import drlugha.translator.shared.exception.NotFoundException;
 import drlugha.translator.system.batch.dto.*;
 import drlugha.translator.system.batch.enums.*;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
@@ -194,7 +195,7 @@ public class BatchService {
         batchDetails = this.batchDetailsRepo.save(batchDetails);
 
         //create a record on the new table
-        createBatchUserAssignment(batchDetailsDto.getTranslatedById(), batchDetails.getBatchDetailsId(), batchEntity.getBatchNo(), UserBatchRole.TEXT_TRANSLATOR);
+        createBatchUserAssignment(batchDetailsDto.getTranslatedById(), batchDetails, batchEntity.getBatchNo(), UserBatchRole.TEXT_TRANSLATOR);
 
         Optional<BatchDetailsStatsEntity> batchDetailsStats = this.batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
         if (batchDetailsStats.isEmpty()) {
@@ -261,7 +262,8 @@ public class BatchService {
         BatchDetailsEntity batchDetails1 = this.batchDetailsRepo.findById(batchDetailsId).get();
         int noOfSentencesToReview = (int) Math.ceil(0.1D * batchDetails1.getTranslatedSentence().size());
         List<TranslatedSentenceEntity> sentencesToReview = batchDetails1.getTranslatedSentence().subList(0, noOfSentencesToReview);
-        List<Long> translatedSentencesToReviewIds = sentencesToReview.stream().map(TranslatedSentenceEntity::getTranslatedSentenceId).collect(Collectors.toList());
+        List<Long> translatedSentencesToReviewIds = sentencesToReview.stream().map(TranslatedSentenceEntity::getTranslatedSentenceId)
+                .collect(Collectors.toList());
         this.translatedSentenceRepo.assignSentencesToExpertReviewer(translatedSentencesToReviewIds);
         if (Objects.nonNull(batchDetails.getSecondReviewerId()))
             batchDetails1.setSecondReviewerId(batchDetails.getSecondReviewerId());
@@ -388,7 +390,7 @@ public class BatchService {
     }
 
     public BatchInfoDTO getAudioRecorderBatchDetails(Long userId) {
-        List<BatchDetailsEntity> batchDetails = this.batchDetailsRepo.findAllByRecordedById(userId);
+        List<BatchDetailsEntity> batchDetails = this.getBatchDetailsByUserRole(userId, UserBatchRole.AUDIO_RECORDER, null);
         List<BatchInfoItemDTO> sortedBatchDetails = batchDetails.stream().map(element -> {
             Integer rejectedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.REJECTED, element.getBatchDetailsId());
             BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
@@ -402,7 +404,7 @@ public class BatchService {
     }
 
     public BatchInfoDTO getAudioReviewerBatchDetails(Long userId) {
-        List<BatchDetailsEntity> batchDetails = this.batchDetailsRepo.findAllByAudioVerifiedById(userId);
+        List<BatchDetailsEntity> batchDetails = this.getBatchDetailsByUserRole(userId, UserBatchRole.AUDIO_VERIFIER, null);
         List<BatchInfoItemDTO> sortedBatchDetails = batchDetails.stream().map(element -> {
             Integer unreviewedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.UNREVIEWED, element.getBatchDetailsId());
             BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
@@ -414,19 +416,57 @@ public class BatchService {
         return new BatchInfoDTO(sortedBatchDetails, null);
     }
 
+    public BatchInfoDTO getExpertAudioReviewerBatchDetails(Long userId) {
+        List<BatchDetailsEntity> batchesDetailsToVerify = this.getBatchDetailsByUserRole(userId, UserBatchRole.EXPERT_AUDIO_REVIEWER, null);
+
+        List<BatchInfoItemDTO> sortedBatchDetails = batchesDetailsToVerify.stream().map(element -> {
+            Integer unreviewedAudios = this.voiceRepo.countAllByStatusAndTranslatedSentenceBatchDetailsId(StatusTypes.UNREVIEWED, element.getBatchDetailsId());
+            BatchInfoItemDTO batchInfoItemDTO = new BatchInfoItemDTO(element);
+            if (batchInfoItemDTO.getAudioReviewed())
+                batchInfoItemDTO.setAudioRecorded(unreviewedAudios <= 0);
+            batchInfoItemDTO.setPendingSentences(unreviewedAudios);
+            return batchInfoItemDTO;
+        }).sorted(
+                (e1, e2) ->
+                        (!e1.getAudioReviewed() && e2.getAudioReviewed()) ? -1 : ((e1.getAudioReviewed() && !e2.getAudioReviewed()) ? 1 : 0)
+        ).collect(Collectors.toList());
+        return new BatchInfoDTO(sortedBatchDetails, null);
+    }
+
+    List<BatchDetailsEntity> getBatchDetailsByUserRole(Long userId, UserBatchRole userBatchRole, Long batchDetailsId) {
+        List<BatchDetailsUserAssignment> userAssignments;
+        if (batchDetailsId != null)
+            userAssignments = batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, userBatchRole, batchDetailsId);
+        else
+            userAssignments = batchDetailsUserAssigmentRepo.findByUserIdAndBatchRole(userId, userBatchRole);
+
+        List<BatchDetailsEntity> batchDetailsEntities = new ArrayList<>();
+        for (BatchDetailsUserAssignment userAssignment : userAssignments) {
+            BatchDetailsEntity batchDetailsEntity = userAssignment.getBatchDetails();
+            if (batchDetailsEntity != null && userAssignment.getBatchDetailsId() != null) {
+                batchDetailsEntity = batchDetailsRepo.findById(batchDetailsEntity.getBatchDetailsId()).orElse(null);
+            }
+            if (batchDetailsEntity != null)
+                batchDetailsEntities.add(batchDetailsEntity);
+        }
+        return batchDetailsEntities;
+    }
+
     public BatchInfoDTO getBatchDetailsByTask(Long userId, Task task) {
         log.info("TASK....{}", task);
         switch (task) {
-            case translation:
+            case TRANSLATION:
                 return getTranslatorBatchDetails(userId);
-            case review:
+            case REVIEW:
                 return getReviewerBatchDetails(userId);
-            case expertReview:
+            case EXPERT_REVIEW:
                 return getExpertReviewerBatchDetails(userId);
-            case audioRecording:
+            case AUDIO_RECORDING:
                 return getAudioRecorderBatchDetails(userId);
-            case audioReviewing:
+            case AUDIO_REVIEWING:
                 return getAudioReviewerBatchDetails(userId);
+            case AUDIO_EXPERT_REVIEWING:
+                return getExpertAudioReviewerBatchDetails(userId);
         }
         return new BatchInfoDTO();
     }
@@ -1053,19 +1093,24 @@ public class BatchService {
     }
 
     @Transactional
-    public ResponseEntity<ResponseMessage> markAudioReviewAsComplete(Long batchDetailsId) {
-        HashMap<String, Object> result = getBatchDetails(batchDetailsId);
-        ResponseEntity<ResponseMessage> response = (ResponseEntity<ResponseMessage>) result.get("response");
-        if (response != null)
-            return response;
-        BatchDetailsEntity batchDetails = (BatchDetailsEntity) result.get("batchDetails");
+    public ResponseMessage markAudioReviewAsComplete(Long batchDetailsId, boolean expertReview) {
+
+        BatchDetailsEntity batchDetails = batchDetailsRepo.findById(batchDetailsId).orElse(null);
         if (batchDetails == null)
-            return ResponseEntity.internalServerError().body(new ResponseMessage("An error occurred"));
-        if (batchDetails.getBatchStatus().ordinal() < BatchStatus.AUDIO_VERIFIED.ordinal()) {
-            batchDetails.setBatchStatus(BatchStatus.AUDIO_VERIFIED);
-            this.batchDetailsRepo.save(batchDetails);
+            throw new NotFoundException("Batch details not found");
+
+        if (!expertReview) {
+            if (batchDetails.getBatchStatus().ordinal() < BatchStatus.AUDIO_VERIFIED.ordinal()) {
+                batchDetails.setBatchStatus(BatchStatus.AUDIO_VERIFIED);
+            }
+        } else {
+            if (batchDetails.getBatchStatus().ordinal() < BatchStatus.EXPERT_AUDIO_VERIFIED.ordinal()) {
+                batchDetails.setBatchStatus(BatchStatus.EXPERT_AUDIO_VERIFIED);
+            }
         }
-        return ResponseEntity.ok(new ResponseMessage("Audios marked as verified"));
+
+        batchDetailsRepo.save(batchDetails);
+        return new ResponseMessage("Audios marked as verified");
     }
 
     public HashMap<String, Object> getBatchDetails(Long batchDetailsId) {
@@ -1265,39 +1310,48 @@ public class BatchService {
         if (assignmentDTO.getUserIds().isEmpty() && assignmentDTO.getUserId() != null)
             assignmentDTO.setUserIds(List.of(assignmentDTO.getUserId()));
 
-        boolean useLegacyImplementation = !role.equals(UserBatchRole.AUDIO_RECORDER) && !role.equals(UserBatchRole.EXPERT_AUDIO_REVIEWER);
+        //boolean useLegacyImplementation = !role.equals(UserBatchRole.AUDIO_RECORDER) && !role.equals(UserBatchRole.EXPERT_AUDIO_REVIEWER);
 
         //delete existing assignments
         batchDetailsUserAssigmentRepo.deleteAllByBatchDetailsIdAndBatchRole(batchDetailsId, role);
 
         for (Long userId : assignmentDTO.getUserIds()) {
-            createBatchUserAssignment(userId, batchDetailsId, batchDetailsEntity.getBatchId(), role);
+            createBatchUserAssignment(userId, batchDetailsEntity, batchDetailsEntity.getBatchId(), role);
 
-            if (useLegacyImplementation) {
-                switch (role) {
-                    case TEXT_TRANSLATOR:
-                        batchDetailsEntity.setTranslatedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TRANSLATOR);
-                        break;
-                    case TEXT_VERIFIER:
-                        batchDetailsEntity.setTranslationVerifiedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TEXT_VERIFIER);
-                        break;
-                    case EXPERT_TEXT_REVIEWER:
-                        batchDetailsEntity.setSecondReviewerId(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_RECORDER);
-                        break;
-                    case AUDIO_VERIFIER:
-                        batchDetailsEntity.setAudioVerifiedById(userId);
-                        batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
-                        break;
-                    default:
-                        log.info("NO ROLE....");
+//            if (useLegacyImplementation) {
+            switch (role) {
+                case TEXT_TRANSLATOR:
+                    batchDetailsEntity.setTranslatedById(userId);
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TRANSLATOR);
+                    break;
+                case TEXT_VERIFIER:
+                    batchDetailsEntity.setTranslationVerifiedById(userId);
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TEXT_VERIFIER);
+                    break;
+                case EXPERT_TEXT_REVIEWER:
+                    batchDetailsEntity.setSecondReviewerId(userId);
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_RECORDER);
 
-                }
-                log.info("SAVING BATCH ENTITY....{}", batchDetailsEntity.getBatchDetailsId());
-                batchDetailsRepo.save(batchDetailsEntity);
+                    int noOfSentencesToReview = (int) Math.ceil(0.1D * batchDetailsEntity.getTranslatedSentence().size());
+                    List<TranslatedSentenceEntity> sentencesToReview = batchDetailsEntity.getTranslatedSentence().subList(0, noOfSentencesToReview);
+                    List<Long> translatedSentencesToReviewIds = sentencesToReview.stream().map(TranslatedSentenceEntity::getTranslatedSentenceId)
+                            .collect(Collectors.toList());
+                    this.translatedSentenceRepo.assignSentencesToExpertReviewer(translatedSentencesToReviewIds);
+                    break;
+                case AUDIO_VERIFIER:
+                    batchDetailsEntity.setAudioVerifiedById(userId);
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
+                    break;
+                case EXPERT_AUDIO_REVIEWER:
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_EXPERT_AUDIO_REVIEWER);
+                    break;
+                case AUDIO_RECORDER:
+                    batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_RECORDER);
+                    break;
+                default:
+                    log.info("NO ROLE....");
             }
+            batchDetailsRepo.save(batchDetailsEntity);
 
         }
 
@@ -1307,35 +1361,46 @@ public class BatchService {
     public ResponseMessage moveBatchAssignmentsFromLegacyTable() {
         List<BatchDetailsEntity> batchDetailsEntities = batchDetailsRepo.findAll();
         for (BatchDetailsEntity batchDetailsEntity : batchDetailsEntities) {
-
-            Long batchDetailsId = batchDetailsEntity.getBatchDetailsId();
             Long batchId = batchDetailsEntity.getBatchId();
 
             if (batchDetailsEntity.getTranslatedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getTranslatedById(), batchDetailsId, batchId, UserBatchRole.TEXT_TRANSLATOR);
+                createBatchUserAssignment(batchDetailsEntity.getTranslatedById(), batchDetailsEntity, batchId, UserBatchRole.TEXT_TRANSLATOR);
 
             if (batchDetailsEntity.getTranslationVerifiedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getTranslationVerifiedById(), batchDetailsId, batchId, UserBatchRole.TEXT_VERIFIER);
+                createBatchUserAssignment(batchDetailsEntity.getTranslationVerifiedById(), batchDetailsEntity, batchId, UserBatchRole.TEXT_VERIFIER);
 
             if (batchDetailsEntity.getSecondReviewerId() != null)
-                createBatchUserAssignment(batchDetailsEntity.getSecondReviewerId(), batchDetailsId, batchId, UserBatchRole.EXPERT_TEXT_REVIEWER);
+                createBatchUserAssignment(batchDetailsEntity.getSecondReviewerId(), batchDetailsEntity, batchId, UserBatchRole.EXPERT_TEXT_REVIEWER);
 
             if (batchDetailsEntity.getRecordedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getRecordedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_RECORDER);
+                createBatchUserAssignment(batchDetailsEntity.getRecordedById(), batchDetailsEntity, batchId, UserBatchRole.AUDIO_RECORDER);
 
             if (batchDetailsEntity.getAudioVerifiedById() != null)
-                createBatchUserAssignment(batchDetailsEntity.getAudioVerifiedById(), batchDetailsId, batchId, UserBatchRole.AUDIO_VERIFIER);
+                createBatchUserAssignment(batchDetailsEntity.getAudioVerifiedById(), batchDetailsEntity, batchId, UserBatchRole.AUDIO_VERIFIER);
 
         }
         return new ResponseMessage("Successfully moved legacy table");
     }
 
-    private void createBatchUserAssignment(Long userId, Long batchDetailsId, Long batchId, UserBatchRole role) {
+    private void createBatchUserAssignment(Long userId, BatchDetailsEntity batchDetails, Long batchId, UserBatchRole role) {
         BatchDetailsUserAssignment batchDetailsUserAssignment = new BatchDetailsUserAssignment();
         batchDetailsUserAssignment.setUserId(userId);
-        batchDetailsUserAssignment.setBatchDetailsId(batchDetailsId);
+        batchDetailsUserAssignment.setBatchDetailsId(batchDetails.getBatchDetailsId());
         batchDetailsUserAssignment.setBatchId(batchId);
         batchDetailsUserAssignment.setBatchRole(role);
+
+        if (role == UserBatchRole.EXPERT_AUDIO_REVIEWER) {
+            //get 10 % of audios
+            List<VoiceEntity> voices = voiceRepo.findAllByBatchDetailsIdAndStatus(batchDetails.getBatchDetailsId(), StatusTypes.APPROVED);
+            if (voices.isEmpty())
+                throw new NotFoundException("No audio Recordings found for this batch");
+
+            int noOfAudiosToReview = (int) Math.ceil(0.1D * voices.size());
+            List<VoiceEntity> voicesToReview = voices.subList(0, noOfAudiosToReview);
+
+            voiceRepo.assignExpertReviewer(voicesToReview.stream().map(VoiceEntity::getVoiceId).collect(Collectors.toList()), userId);
+
+        }
         batchDetailsUserAssigmentRepo.save(batchDetailsUserAssignment);
     }
 

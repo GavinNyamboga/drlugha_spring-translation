@@ -3,6 +3,7 @@ package drlugha.translator.system.voice.repository;
 import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.system.voice.model.VoiceEntity;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
@@ -46,9 +47,19 @@ public interface VoiceRepository extends JpaRepository<VoiceEntity, Long> {
     @Query("SELECT v FROM VoiceEntity v WHERE v.translatedSentence.batchDetailsId = :batchDetailsId")
     List<VoiceEntity> findAllByBatchDetailsId(Long batchDetailsId);
 
+    @Query("SELECT v FROM VoiceEntity v WHERE v.translatedSentence.batchDetailsId = :batchDetailsId and v.status=:status")
+    List<VoiceEntity> findAllByBatchDetailsIdAndStatus(Long batchDetailsId, StatusTypes status);
+
     @Query("SELECT v.voiceId from VoiceEntity v where v.batchDetailsId=:batchDetailsId and v.userId in :userIds")
     List<Long> fetchVoiceIdsByRecorderIds(@Param("batchDetailsId") Long batchDetailsId, @Param("userIds") List<Long> recorderIds);
 
     @Query("SELECT v.voiceId from VoiceEntity v where v.batchDetailsId=:batchDetailsId and v.userId in :userIds")
     List<Long> fetchVoiceIdsByRecorderIdsAndTranslatedSentenceId(@Param("batchDetailsId") Long batchDetailsId, @Param("userIds") List<Long> recorderIds);
+
+    @Modifying
+    @Query("UPDATE VoiceEntity v SET v.expertUserId=:userId WHERE v.voiceId in :ids")
+    void assignExpertReviewer(@Param("ids") List<Long> ids, @Param("userId") Long userId);
+
+    List<VoiceEntity> findByExpertUserIdAndBatchDetails_BatchDetailsId(Long userId, Long batchDetailsId);
+
 }

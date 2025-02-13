@@ -1,43 +1,27 @@
 package drlugha.translator.system.batch.controller;
 
-import drlugha.translator.system.batch.dto.*;
-import drlugha.translator.system.batch.enums.*;
-import drlugha.translator.system.batch.model.BatchDetailsEntity;
-import drlugha.translator.system.batch.model.BatchEntity;
-import drlugha.translator.system.batch.service.BatchService;
-import drlugha.translator.system.batch.dto.BatchDTO;
-import drlugha.translator.system.batch.dto.BatchResponseDTO;
-import drlugha.translator.system.batch.dto.CreatePrefixedBatchDTO;
-import drlugha.translator.system.batch.dto.FeedbackDTO;
-import drlugha.translator.system.sentence.dto.CompletedSentencesDto;
-import drlugha.translator.system.sentence.dto.SentenceItemDto;
-import drlugha.translator.shared.enums.YesNo;
-import drlugha.translator.system.batch.repository.BatchDetailsRepository;
-import drlugha.translator.system.batch.repository.BatchRepository;
-import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.configs.AmazonClient;
 import drlugha.translator.shared.controller.BaseController;
+import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.system.batch.dto.*;
+import drlugha.translator.system.batch.enums.BatchOrigin;
+import drlugha.translator.system.batch.enums.Task;
+import drlugha.translator.system.batch.enums.UserBatchRole;
+import drlugha.translator.system.batch.model.BatchDetailsEntity;
+import drlugha.translator.system.batch.model.BatchEntity;
+import drlugha.translator.system.batch.repository.BatchDetailsRepository;
+import drlugha.translator.system.batch.repository.BatchRepository;
+import drlugha.translator.system.batch.service.BatchService;
+import drlugha.translator.system.sentence.dto.CompletedSentencesDto;
 import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
-import org.springframework.data.domain.PageImpl;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
-import org.springframework.http.HttpStatus;
-import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
-import java.net.MalformedURLException;
-import java.net.URL;
-import java.util.*;
-import java.util.stream.Collectors;
-import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
+import java.util.List;
 
 @RestController
 @RequiredArgsConstructor
@@ -58,7 +42,7 @@ public class BatchController extends BaseController {
                                                                 @RequestParam(name = "page", defaultValue = "0") Integer page,
                                                                 @RequestParam(name = "pageSize", defaultValue = "25") Integer pageSize,
                                                                 @RequestParam(name = "batchOrigin", required = false) BatchOrigin batchOrigin) {
-        return entity(batchService.getAllBatches(batchType, page,pageSize, batchOrigin));
+        return entity(batchService.getAllBatches(batchType, page, pageSize, batchOrigin));
     }
 
     @PostMapping("/batch")
@@ -171,8 +155,9 @@ public class BatchController extends BaseController {
     }
 
     @PutMapping({"/batch-status/audioVerified/{batchDetailsId}"})
-    public ResponseEntity<ResponseMessage> batchStatusAudioVerified(@PathVariable Long batchDetailsId) {
-        return batchService.markAudioReviewAsComplete(batchDetailsId);
+    public ResponseEntity<ResponseMessage> batchStatusAudioVerified(@PathVariable Long batchDetailsId,
+                                                                    @RequestParam(value = "expertReview", defaultValue = "false") boolean expertReview) {
+        return entity(batchService.markAudioReviewAsComplete(batchDetailsId, expertReview));
     }
 
     @GetMapping({"/user-batch-details"})
@@ -220,7 +205,7 @@ public class BatchController extends BaseController {
     @CrossOrigin(exposedHeaders = "Content-Disposition")
     @GetMapping("batch-details/download")
     public ResponseEntity downloadBatchDetails(@RequestParam List<Long> batchDetailsIds,
-                                        @RequestParam("excelOnly") boolean excelOnly) throws Exception {
+                                               @RequestParam("excelOnly") boolean excelOnly) throws Exception {
         return batchService.downloadBatchDetails(batchDetailsIds, excelOnly);
     }
 

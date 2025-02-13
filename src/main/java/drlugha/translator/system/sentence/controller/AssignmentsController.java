@@ -51,7 +51,7 @@ public class AssignmentsController {
 
     @GetMapping("/user/translation/assignments")
     public SentencesToTranslateDto userAssignedAssignments(
-            @RequestParam(defaultValue = "assignedTranslator") BatchStatus batchStatus,
+            @RequestParam(defaultValue = "ASSIGNED_TRANSLATOR") BatchStatus batchStatus,
             @RequestParam Long userId,
             @RequestParam(required = false) Long batchDetailsId) {
         return assignmentSvc.fetchAssignedSentences(userId, batchStatus, batchDetailsId);

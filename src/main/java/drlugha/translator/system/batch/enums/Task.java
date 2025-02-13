@@ -1,9 +1,10 @@
 package drlugha.translator.system.batch.enums;
 
 public enum Task {
-    translation,
-    review,
-    expertReview,
-    audioRecording,
-    audioReviewing
+    TRANSLATION,
+    REVIEW,
+    EXPERT_REVIEW,
+    AUDIO_RECORDING,
+    AUDIO_REVIEWING,
+    AUDIO_EXPERT_REVIEWING,
 }

@@ -9,13 +9,17 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.model.*;
 import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.enums.BatchType;
+import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
+import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
 import drlugha.translator.system.batch.model.BatchEntity;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
 import drlugha.translator.system.batch.repository.BatchDetailsStatsRepository;
+import drlugha.translator.system.batch.repository.BatchDetailsUserAssigmentRepo;
 import drlugha.translator.system.batch.repository.BatchRepository;
 import drlugha.translator.system.language.model.Language;
 import drlugha.translator.system.language.repository.LanguageRepository;
@@ -75,6 +79,7 @@ public class AmazonClient {
     private final PopulateAudioIndexRepository populateAudioIndexRepository;
 
     private final JwtUtil jwtUtil;
+    private final BatchDetailsUserAssigmentRepo batchDetailsUserAssigmentRepo;
 
     private AmazonS3 s3client;
 
@@ -546,5 +551,126 @@ public class AmazonClient {
         return ResponseEntity.ok(new ResponseMessage("Databases successfully populated"));
     }
 
+    public VoicesToReviewDto fetchAudioExpertReviewersTasks(Long userId, Long batchDetailsId) {
 
+        List<BatchDetailsUserAssignment> userAssignments;
+
+        if (batchDetailsId != null) {
+            userAssignments = batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId,
+                    UserBatchRole.EXPERT_AUDIO_REVIEWER, batchDetailsId);
+        } else {
+            userAssignments = batchDetailsUserAssigmentRepo.findByUserIdAndBatchRole(userId, UserBatchRole.EXPERT_AUDIO_REVIEWER);
+        }
+
+        String language = null;
+        List<TranslatedSentenceItemDto> unreviewedAudios = new ArrayList<>();
+        List<TranslatedSentenceItemDto> reviewedAudios = new ArrayList<>();
+
+        List<BatchDetailsEntity> batchesDetailsToVerify = new ArrayList<>();
+        for (BatchDetailsUserAssignment userAssignment : userAssignments) {
+            BatchDetailsEntity batchDetailsEntity = userAssignment.getBatchDetails();
+            if (batchDetailsEntity != null && userAssignment.getBatchDetailsId() != null) {
+                batchDetailsEntity = batchDetailsRepository.findById(batchDetailsEntity.getBatchDetailsId()).orElse(null);
+            }
+            if (batchDetailsEntity != null)
+                batchesDetailsToVerify.add(batchDetailsEntity);
+        }
+
+        for (BatchDetailsEntity batchDetails : batchesDetailsToVerify) {
+            language = batchDetails.getLanguage().getName();
+            batchDetailsId = batchDetails.getBatchDetailsId();
+
+            logger.info("Processing Batch Details ID: {}, Language: {}", batchDetailsId, language);
+
+            List<VoiceEntity> allVoiceEntities = voiceRepo.findByExpertUserIdAndBatchDetails_BatchDetailsId(userId, batchDetails.getBatchDetailsId());
+
+            //filter these by reviewed and unreviewed
+            List<VoiceEntity> unreviewed = allVoiceEntities.stream()
+                    .filter(v -> v.getExpertApproved() == null)
+                    .collect(Collectors.toList());
+
+            List<VoiceEntity> reviewed = allVoiceEntities.stream()
+                    .filter(v -> v.getExpertApproved() != null)
+                    .collect(Collectors.toList());
+
+            //One translated sentence can have multiple audios
+            Map<Long, List<VoiceEntity>> unreviewedMap = unreviewed.stream().collect(Collectors.groupingBy(VoiceEntity::getTranslatedSentenceId));
+            Map<Long, List<VoiceEntity>> reviewedMap = reviewed.stream().collect(Collectors.groupingBy(VoiceEntity::getTranslatedSentenceId));
+
+            for (Map.Entry<Long, List<VoiceEntity>> entry : unreviewedMap.entrySet()) {
+                Long translatedSentenceId = entry.getKey();
+
+                List<VoiceEntity> voiceEntities = entry.getValue();
+                TranslatedSentenceEntity translatedSentence = voiceEntities.get(0).getTranslatedSentence();
+                if (translatedSentence == null) {
+                    translatedSentence = translatedRepo.findById(translatedSentenceId).orElse(null);
+                }
+
+                TranslatedSentenceItemDto translatedSentenceItemDto = TranslatedSentenceItemDto.entityToDto(translatedSentence,
+                        null, null);
+
+                for (VoiceEntity voiceEntity : voiceEntities) {
+                    String presignedUrl = generatePresignedUrl(voiceEntity.getFileUrl());
+                    voiceEntity.setPresignedUrl(presignedUrl);
+                    logger.debug("Generated presigned URL for unreviewed audio: {}", presignedUrl);
+
+                    TranslatedSentenceItemDto.AudioDTO audioDTO = new TranslatedSentenceItemDto.AudioDTO();
+                    audioDTO.setAudioLink(presignedUrl);
+                    audioDTO.setVoiceId(voiceEntity.getVoiceId());
+
+                    if (voiceEntity.getUser() != null) {
+                        audioDTO.setRecordedBy(voiceEntity.getUser().getUsername());
+                    }
+
+                    translatedSentenceItemDto.getAudioList().add(audioDTO);
+                }
+                unreviewedAudios.add(translatedSentenceItemDto);
+            }
+
+            for (Map.Entry<Long, List<VoiceEntity>> entry : reviewedMap.entrySet()) {
+                Long translatedSentenceId = entry.getKey();
+
+                List<VoiceEntity> voiceEntities = entry.getValue();
+                TranslatedSentenceEntity translatedSentence = voiceEntities.get(0).getTranslatedSentence();
+                if (translatedSentence == null) {
+                    translatedSentence = translatedRepo.findById(translatedSentenceId).orElse(null);
+                }
+
+                TranslatedSentenceItemDto translatedSentenceItemDto = TranslatedSentenceItemDto.entityToDto(translatedSentence, null, null);
+
+                for (VoiceEntity voiceEntity : voiceEntities) {
+                    Boolean isAccepted = voiceEntity.getExpertApproved() == YesNo.YES;
+
+                    String presignedUrl = generatePresignedUrl(voiceEntity.getFileUrl());
+                    voiceEntity.setPresignedUrl(presignedUrl);
+                    logger.debug("Generated presigned URL for reviewed audio: {}, Accepted: {}", presignedUrl, isAccepted);
+
+                    TranslatedSentenceItemDto.AudioDTO audioDTO = new TranslatedSentenceItemDto.AudioDTO();
+                    audioDTO.setAudioLink(presignedUrl);
+                    audioDTO.setVoiceId(voiceEntity.getVoiceId());
+                    audioDTO.setAccepted(isAccepted);
+
+                    if (voiceEntity.getUser() != null) {
+                        audioDTO.setRecordedBy(voiceEntity.getUser().getUsername());
+                    }
+
+                    translatedSentenceItemDto.getAudioList().add(audioDTO);
+                }
+                reviewedAudios.add(translatedSentenceItemDto);
+            }
+
+        }
+
+        VoicesToReviewDto voicesToReviewDto = new VoicesToReviewDto();
+        voicesToReviewDto.setBatchDetailsId(batchDetailsId);
+        voicesToReviewDto.setLanguage(language);
+        voicesToReviewDto.setReviewedAudios(reviewedAudios);
+        voicesToReviewDto.setUnreviewedAudios(unreviewedAudios);
+
+        logger.info("Returning VoicesToReviewDto with Batch Details ID: {}, Language: {}, {} unreviewed audio(s), {} reviewed audio(s)",
+                batchDetailsId, language, unreviewedAudios.size(), reviewedAudios.size());
+
+        return voicesToReviewDto;
+
+    }
 }

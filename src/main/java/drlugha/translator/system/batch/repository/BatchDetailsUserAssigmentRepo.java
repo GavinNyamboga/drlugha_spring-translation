@@ -19,4 +19,9 @@ public interface BatchDetailsUserAssigmentRepo extends JpaRepository<BatchDetail
     @Query("DELETE FROM BatchDetailsUserAssignment b WHERE b.batchDetailsId=:batchDetailsId and b.batchRole=:role")
     void deleteAllByBatchDetailsIdAndBatchRole(Long batchDetailsId, UserBatchRole role);
 
+    List<BatchDetailsUserAssignment> findByUserIdAndBatchRole(Long userId, UserBatchRole userBatchRole);
+
+    @Query("SELECT u FROM BatchDetailsUserAssignment u WHERE u.userId=:userId AND u.batchRole=:userBatchRole AND u.batchDetailsId=:batchDetailsId")
+    List<BatchDetailsUserAssignment> findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(Long userId, UserBatchRole userBatchRole,
+                                                                                            Long batchDetailsId);
 }

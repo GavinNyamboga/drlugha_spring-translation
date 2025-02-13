@@ -1,9 +1,9 @@
 package drlugha.translator.system.user.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
-import drlugha.translator.system.sentence.model.AssignedSentencesEntity;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchEntity;
+import drlugha.translator.system.sentence.model.AssignedSentencesEntity;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.user.enums.Gender;
 import lombok.*;
@@ -20,6 +20,12 @@ import java.util.List;
 @Entity
 @Table(name = "users")
 public class User {
+
+    @Transient
+    public static final String CURRENT_USER_ID = "CURRENT_USER_ID";
+
+    @Transient
+    public static final String CURRENT_USERNAME = "CURRENT_USERNAME";
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)

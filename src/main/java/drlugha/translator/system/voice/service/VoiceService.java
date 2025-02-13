@@ -1,5 +1,6 @@
 package drlugha.translator.system.voice.service;
 
+import drlugha.translator.auth.service.AuthenticationService;
 import drlugha.translator.configs.AmazonClient;
 import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
@@ -17,12 +18,13 @@ import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.sentence.model.TranslatedSentenceLogsEntity;
 import drlugha.translator.system.sentence.repository.TranslatedSentenceLogsRepo;
 import drlugha.translator.system.sentence.repository.TranslatedSentenceRepository;
+import drlugha.translator.system.user.model.User;
 import drlugha.translator.system.voice.model.VoiceEntity;
 import drlugha.translator.system.voice.repository.VoiceRepository;
 import drlugha.translator.util.JwtUtil;
+import lombok.RequiredArgsConstructor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -37,28 +39,24 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 @Service
+@RequiredArgsConstructor
 public class VoiceService {
 
-    @Autowired
-    VoiceRepository voiceRepo;
+    private final AuthenticationService authenticationService;
 
-    @Autowired
-    TranslatedSentenceRepository translatedSentenceRepo;
+    private final VoiceRepository voiceRepo;
 
-    @Autowired
-    BatchDetailsRepository batchDetailsRepo;
+    private final TranslatedSentenceRepository translatedSentenceRepo;
 
-    @Autowired
-    BatchDetailsStatsRepository batchDetailsStatsRepository;
+    private final BatchDetailsRepository batchDetailsRepo;
 
-    @Autowired
-    TranslatedSentenceLogsRepo translatedSentenceLogsRepo;
+    private final BatchDetailsStatsRepository batchDetailsStatsRepository;
 
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final TranslatedSentenceLogsRepo translatedSentenceLogsRepo;
 
-    @Autowired
-    private AmazonClient amazonClient;
+    private final JwtUtil jwtUtil;
+
+    private final AmazonClient amazonClient;
 
     Logger logger = LoggerFactory.getLogger(VoiceService.class);
 
@@ -243,12 +241,13 @@ public class VoiceService {
         return new ResponseMessage("Voice recording Approved");
     }
 
-    public ResponseMessage rejectVoiceRecording(Long voiceId) {
+    public ResponseMessage rejectVoiceRecording(Long voiceId, String rejectionReason) {
         VoiceEntity voiceEntity = voiceRepo.findById(voiceId).orElse(null);
         if (voiceEntity == null) {
             throw new NotFoundException("Voice not found");
         }
 
+        voiceEntity.setRejectionReason(rejectionReason);
         voiceEntity.setStatus(StatusTypes.REJECTED);
         voiceEntity.setApproved(YesNo.NO);
         VoiceEntity updatedVoiceEntity = voiceRepo.save(voiceEntity);
@@ -271,6 +270,62 @@ public class VoiceService {
                 }
             }
         }
+        return new ResponseMessage("Voice recording Rejected");
+    }
+
+    public ResponseMessage expertApprovedVoiceRecording(Long voiceId) {
+        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).orElse(null);
+        if (voiceEntity == null) {
+            throw new NotFoundException("Voice not found");
+        }
+
+        User currentUser = authenticationService.getCurrentUser();
+        if (currentUser != null && !Objects.equals(voiceEntity.getExpertUserId(), currentUser.getUserId())) {
+            throw new BadRequestException("You are not assigned as an expert for this voice");
+        }
+
+        voiceEntity.setExpertReviewedAt(new Date());
+        voiceEntity.setStatus(StatusTypes.APPROVED);
+        voiceEntity.setApproved(YesNo.YES);
+        voiceEntity.setExpertApproved(YesNo.YES);
+        voiceRepo.save(voiceEntity);
+
+        // STATS
+//        Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
+//        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+//        if (optionalBatchDetails.isPresent()) {
+//            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+//
+//        }
+
+        return new ResponseMessage("Voice recording Approved");
+    }
+
+
+    public ResponseMessage expertRejectVoiceRecording(Long voiceId, String reason) {
+        VoiceEntity voiceEntity = voiceRepo.findById(voiceId).orElse(null);
+        if (voiceEntity == null) {
+            throw new NotFoundException("Voice not found");
+        }
+
+        if (reason == null || reason.isBlank())
+            throw new BadRequestException("Rejection reason is required");
+
+        User currentUser = authenticationService.getCurrentUser();
+        if (currentUser != null)
+            voiceEntity.setExpertUserId(currentUser.getUserId());
+
+        voiceEntity.setExpertReviewedAt(new Date());
+        voiceEntity.setExpertApproved(YesNo.NO);
+        voiceEntity.setRejectionReason(reason);
+        voiceRepo.save(voiceEntity);
+
+//        Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
+//        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+//        if (optionalBatchDetails.isPresent()) {
+//            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+//        }
+
         return new ResponseMessage("Voice recording Rejected");
     }
 

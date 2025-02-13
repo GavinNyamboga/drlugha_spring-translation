@@ -64,17 +64,22 @@ public class TranslatedSentenceController {
     }
 
     @GetMapping({"/reviewer/translatedsentence"})
-    public ResponseEntity<SentenceToReviewDto> sentencesToReview(@RequestParam Long userId, @RequestParam(defaultValue = "assignedTextVerifier") BatchStatus batchStatus, @RequestParam(required = false) Long batchDetailsId) {
+    public ResponseEntity<SentenceToReviewDto> sentencesToReview(@RequestParam Long userId,
+                                                                 @RequestParam(defaultValue = "ASSIGNED_TEXT_VERIFIER") BatchStatus batchStatus,
+                                                                 @RequestParam(required = false) Long batchDetailsId) {
         return this.batchService.reviewerAssignedTasks(userId, batchStatus, batchDetailsId);
     }
 
     @GetMapping({"/second-reviewer/translatedsentence"})
-    public ResponseEntity<SentenceToReviewDto> sentencesForSecondReview(@RequestParam Long userId, @RequestParam(defaultValue = "assignedExpertReviewer") BatchStatus batchStatus, @RequestParam(required = false) Long batchDetailsId) {
+    public ResponseEntity<SentenceToReviewDto> sentencesForSecondReview(@RequestParam Long userId,
+                                                                        @RequestParam(defaultValue = "ASSIGNED_EXPERT_REVIEWER") BatchStatus batchStatus,
+                                                                        @RequestParam(required = false) Long batchDetailsId) {
         return this.batchService.expertReviewerAssignedTasks(userId, batchStatus, batchDetailsId);
     }
 
     @GetMapping({"/users/rejected/translatedsentences"})
-    public List<TranslatedSentenceEntity> rejectedTranslatedSentences(@RequestParam(defaultValue = "rejected") StatusTypes reviewStatus, @RequestParam Long userId) {
+    public List<TranslatedSentenceEntity> rejectedTranslatedSentences(@RequestParam(defaultValue = "REJECTED") StatusTypes reviewStatus,
+                                                                      @RequestParam Long userId) {
         return this.translatedRepo.findByReviewStatusAndAssignedTranslator(reviewStatus, userId);
     }
 
@@ -84,7 +89,8 @@ public class TranslatedSentenceController {
     }
 
     @PutMapping({"/update/translatedsentence/{id}"})
-    public ResponseMessage updateTranslatedSentence(@RequestBody TranslatedSentenceEntity translatedSentence, @PathVariable Long id) throws JsonProcessingException {
+    public ResponseMessage updateTranslatedSentence(@RequestBody TranslatedSentenceEntity translatedSentence,
+                                                    @PathVariable Long id) throws JsonProcessingException {
         try {
             TranslatedSentenceEntity updatedTranslatedSentence = this.translatedSvc.editTranslatedSentence(translatedSentence, id);
             return new ResponseMessage(this.objectMapper.writeValueAsString(updatedTranslatedSentence));

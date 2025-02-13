@@ -79,6 +79,20 @@ public class VoiceEntity {
 
     @Column
     private String expertRejectionReason;
+
+    @Column
+    private Long expertUserId;
+
+    @Column
+    private Long verifierUserId;
+
+    @Column
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date verifiedAt;
+
+    @Column
+    @Temporal(TemporalType.TIMESTAMP)
+    private Date expertReviewedAt;
 }
 
 

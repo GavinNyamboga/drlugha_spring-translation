@@ -1,5 +1,6 @@
 package drlugha.translator.system.batch.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import drlugha.translator.shared.model.BaseEntity;
 import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.user.model.User;
@@ -21,6 +22,7 @@ import javax.persistence.*;
         })
 public class BatchDetailsUserAssignment extends BaseEntity {
 
+    @JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "batch_details_id", insertable = false, updatable = false)
     private BatchDetailsEntity batchDetails;

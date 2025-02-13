@@ -10,7 +10,10 @@ public enum BatchStatus {
     ASSIGNED_RECORDER,
     RECORDED,
     ASSIGNED_AUDIO_VERIFIER,
-    AUDIO_VERIFIED;
+    AUDIO_VERIFIED,
+    ASSIGNED_EXPERT_AUDIO_REVIEWER,
+    EXPERT_AUDIO_VERIFIED,
+    ;
 
     public String getLabel(BatchType batchType) {
         if (this == BatchStatus.ASSIGNED_TRANSLATOR) {
@@ -27,8 +30,10 @@ public enum BatchStatus {
             return "Translated";
         } else if (this == BatchStatus.TRANSLATION_VERIFIED || this == BatchStatus.ASSIGNED_EXPERT_REVIEWER) {
             return "Moderator Reviewed";
-        } else if (this == BatchStatus.SECOND_VERIFICATION_DONE || this == BatchStatus.ASSIGNED_RECORDER) {
+        } else if (this == BatchStatus.SECOND_VERIFICATION_DONE) {
             return "Expert Reviewed";
+        } else if (this == BatchStatus.ASSIGNED_RECORDER) {
+            return "Assigned Recorder";
         } else if (this == BatchStatus.RECORDED) {
             return "Audio Recorded";
         } else if (this == BatchStatus.ASSIGNED_AUDIO_VERIFIER) {

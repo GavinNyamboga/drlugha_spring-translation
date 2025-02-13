@@ -20,6 +20,7 @@ public class BatchInfoItemDTO {
     private Boolean expertReviewed;
     private Boolean audioRecorded;
     private Boolean audioReviewed;
+    private Boolean audioExpertReviewed;
 
     public BatchInfoItemDTO(BatchDetailsEntity batchDetailsEntity) {
         batchDetailsId = batchDetailsEntity.getBatchDetailsId();
@@ -33,5 +34,6 @@ public class BatchInfoItemDTO {
         expertReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_EXPERT_REVIEWER.ordinal();
         audioRecorded = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_RECORDER.ordinal();
         audioReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_AUDIO_VERIFIER.ordinal();
+        audioExpertReviewed = batchDetailsEntity.getBatchStatus().ordinal() > BatchStatus.ASSIGNED_EXPERT_AUDIO_REVIEWER.ordinal();
     }
 }

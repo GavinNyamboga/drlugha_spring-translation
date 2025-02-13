@@ -92,6 +92,7 @@ public class BatchDetailsEntity {
     @Column(name = "deletion_status", columnDefinition = "int default 0", nullable = false)
     private DeletionStatus deletionStatus = DeletionStatus.NOT_DELETED;
 
+    @JsonIgnore
     @OneToMany(fetch = FetchType.EAGER, cascade = {CascadeType.ALL}, mappedBy = "batchDetails")
     private List<BatchDetailsUserAssignment> batchDetailsUserAssignment = new ArrayList<>();
 

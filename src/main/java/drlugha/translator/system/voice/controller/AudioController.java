@@ -78,6 +78,12 @@ public class AudioController extends BaseController {
         return entity(amazonClient.fetchAudioReviewersTasks(userId, batchDetailsId));
     }
 
+    @GetMapping({"voices/expert/audio"})
+    public ResponseEntity<VoicesToReviewDto> fetchAudioExpertReviewersTasks(@RequestParam Long userId,
+                                                                            @RequestParam(required = false) Long batchDetailsId) {
+        return entity(amazonClient.fetchAudioExpertReviewersTasks(userId, batchDetailsId));
+    }
+
     @GetMapping({"/fetch/voice"})
     public List<VoiceEntity> allVoiceRecordings(@RequestParam(defaultValue = "0") int pageNo, int size) {
         return this.voiceSvc.getVoiceByPage(pageNo, size);
@@ -94,8 +100,19 @@ public class AudioController extends BaseController {
     }
 
     @PutMapping({"/reject/voice/{voiceId}"})
-    public ResponseEntity<ResponseMessage> rejectVoiceRecording(@PathVariable Long voiceId) {
-        return entity(voiceSvc.rejectVoiceRecording(voiceId));
+    public ResponseEntity<ResponseMessage> rejectVoiceRecording(@RequestParam(name = "rejectionReason", required = false) String rejectionReason,
+                                                                @PathVariable Long voiceId) {
+        return entity(voiceSvc.rejectVoiceRecording(voiceId, rejectionReason));
+    }
+
+    @PutMapping("/voice/expert/review/{voiceId}")
+    public ResponseEntity<ResponseMessage> expertReview(@PathVariable Long voiceId,
+                                                        @RequestParam boolean approve,
+                                                        @RequestParam(required = false) String rejectionReason) {
+        if (approve)
+            return entity(voiceSvc.expertApprovedVoiceRecording(voiceId));
+        else
+            return entity(voiceSvc.expertRejectVoiceRecording(voiceId, rejectionReason));
     }
 
     @PostMapping("/storage/uploadFile/{translatedSentenceId}")
