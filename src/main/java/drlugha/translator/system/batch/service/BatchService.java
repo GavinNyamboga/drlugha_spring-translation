@@ -1313,10 +1313,13 @@ public class BatchService {
         //boolean useLegacyImplementation = !role.equals(UserBatchRole.AUDIO_RECORDER) && !role.equals(UserBatchRole.EXPERT_AUDIO_REVIEWER);
 
         //delete existing assignments
-        batchDetailsUserAssigmentRepo.deleteAllByBatchDetailsIdAndBatchRole(batchDetailsId, role);
+        batchDetailsUserAssigmentRepo.deleteAllByBatchDetailsIdAndBatchRoleAndNotInUserIds(batchDetailsId, role, assignmentDTO.getUserIds());
 
         for (Long userId : assignmentDTO.getUserIds()) {
-            createBatchUserAssignment(userId, batchDetailsEntity, batchDetailsEntity.getBatchId(), role);
+            List<BatchDetailsUserAssignment> userAssignments =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetailsId);
+            if (userAssignments.isEmpty())
+                createBatchUserAssignment(userId, batchDetailsEntity, batchDetailsEntity.getBatchId(), role);
 
 //            if (useLegacyImplementation) {
             switch (role) {

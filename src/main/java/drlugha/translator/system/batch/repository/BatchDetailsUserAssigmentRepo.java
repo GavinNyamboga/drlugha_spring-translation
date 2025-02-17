@@ -15,9 +15,10 @@ public interface BatchDetailsUserAssigmentRepo extends JpaRepository<BatchDetail
 
     List<BatchDetailsUserAssignment> findByBatchDetailsIdAndBatchRole(Long batchDetailsId, UserBatchRole userBatchRole);
 
+
     @Modifying
-    @Query("DELETE FROM BatchDetailsUserAssignment b WHERE b.batchDetailsId=:batchDetailsId and b.batchRole=:role")
-    void deleteAllByBatchDetailsIdAndBatchRole(Long batchDetailsId, UserBatchRole role);
+    @Query("DELETE FROM BatchDetailsUserAssignment b WHERE b.batchDetailsId=:batchDetailsId and b.batchRole=:role and b.userId not in :userIds")
+    void deleteAllByBatchDetailsIdAndBatchRoleAndNotInUserIds(Long batchDetailsId, UserBatchRole role, List<Long> userIds);
 
     List<BatchDetailsUserAssignment> findByUserIdAndBatchRole(Long userId, UserBatchRole userBatchRole);
 
