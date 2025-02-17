@@ -1304,8 +1304,12 @@ public class BatchService {
             return ResponseEntity.badRequest().body(new ResponseMessage("Batch details does not exist"));
 
         BatchDetailsEntity batchDetailsEntity = optionalBatchDetails.get();
-        if (batchDetailsEntity.getBatch().getBatchType() == BatchType.AUDIO)
-            return ResponseEntity.badRequest().body(new ResponseMessage("Audio batches cannot be assigned a recorder"));
+
+        //Audio batches can only be assigned AUDIO_TRANSCRIBER,TEXT_VERIFIER and EXPERT_TEXT_REVIEWER
+        if (batchDetailsEntity.getBatch().getBatchType() == BatchType.AUDIO && role != UserBatchRole.AUDIO_TRANSCRIBER &&
+                role != UserBatchRole.TEXT_VERIFIER && role != UserBatchRole.EXPERT_TEXT_REVIEWER)
+            throw new BadRequestException(String.format("user role (%s) not allowed for Audio batches", role));
+
 
         if (assignmentDTO.getUserIds().isEmpty() && assignmentDTO.getUserId() != null)
             assignmentDTO.setUserIds(List.of(assignmentDTO.getUserId()));
@@ -1324,6 +1328,7 @@ public class BatchService {
 //            if (useLegacyImplementation) {
             switch (role) {
                 case TEXT_TRANSLATOR:
+                case AUDIO_TRANSCRIBER:
                     batchDetailsEntity.setTranslatedById(userId);
                     batchDetailsEntity.setBatchStatus(BatchStatus.ASSIGNED_TRANSLATOR);
                     break;

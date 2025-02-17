@@ -66,6 +66,7 @@ public class BatchDetailsDTO {
             if (user != null) {
                 switch (batchDetailsUserAssignment.getBatchRole()) {
                     case TEXT_TRANSLATOR:
+                    case AUDIO_TRANSCRIBER:
                         batchDetailsDto.setTranslatedBy(new UserDetailDTO().toDto(user));
                         break;
                     case TEXT_VERIFIER:
