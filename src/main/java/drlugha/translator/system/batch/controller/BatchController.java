@@ -161,10 +161,8 @@ public class BatchController extends BaseController {
     }
 
     @GetMapping({"/user-batch-details"})
-    public BatchInfoDTO getBatchDetailsByTask(@RequestParam Long userId, @RequestParam(defaultValue = "0") Integer task) {
-        if (task >= (Task.values()).length)
-            task = 0;
-        return batchService.getBatchDetailsByTask(userId, Task.values()[task]);
+    public BatchInfoDTO getBatchDetailsByTask(@RequestParam Long userId, @RequestParam(defaultValue = "TRANSLATION") Task task) {
+        return batchService.getBatchDetailsByTask(userId, task);
     }
 
     @GetMapping({"batch-details/completed-sentences"})

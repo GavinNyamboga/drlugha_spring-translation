@@ -40,6 +40,9 @@ public enum BatchStatus {
             return "Audio Assigned Verifier";
         } else if (this == BatchStatus.AUDIO_VERIFIED) {
             return "Audio Reviewed";
+        } else if (this == BatchStatus.EXPERT_AUDIO_VERIFIED) {
+            return "Completed";
+
         } else {
             return "";
         }
