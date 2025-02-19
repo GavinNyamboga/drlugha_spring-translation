@@ -124,8 +124,7 @@ public class AmazonClient {
     }
 
 
-    public ResponseEntity<ResponseMessage> uploadFile(MultipartFile multipartFile, Long translatedSentenceId, Long voiceId,
-                                                      Long userId, String authorizationHeader) throws Exception {
+    public ResponseEntity<ResponseMessage> uploadFile(MultipartFile multipartFile, Long translatedSentenceId, Long voiceId, String authorizationHeader) throws Exception {
         // Check if the file is empty (0 KB)
         if (multipartFile.isEmpty()) {
             return ResponseEntity.badRequest().body(new ResponseMessage("File is empty and cannot be uploaded."));
@@ -165,6 +164,11 @@ public class AmazonClient {
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepository.findById(translatedSentenceEntity.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+            if (voiceId != null) {
+                batchDetails.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
+                batchDetailsRepository.save(batchDetails);
+            }
+
             if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_RECORDER) { // Update user stats
                 Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
                 if (optionalUserStats.isPresent()) {
@@ -188,8 +192,8 @@ public class AmazonClient {
             return ResponseEntity.badRequest().body(new ResponseMessage("Voice does not exist"));
         }
         VoiceEntity voiceEntity = optionalVoice.get();
-        Long userId = voiceEntity.getUser().getUserId();  // Get the user ID from the VoiceEntity
-        return uploadFile(multipartFile, voiceEntity.getTranslatedSentenceId(), voiceEntity.getVoiceId(), userId, authorizationHeader);
+
+        return uploadFile(multipartFile, voiceEntity.getTranslatedSentenceId(), voiceEntity.getVoiceId(), authorizationHeader);
     }
 
     public String deleteFileFromS3Bucket(Long id, boolean deleteVoiceFromDb) {

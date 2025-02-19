@@ -39,7 +39,7 @@ public class AudioController extends BaseController {
             translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setAssignedRecorderId(recorderId));
             translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setAssignedAudioReviewerId(audioReviewerId));
             translatedSentences.forEach(translatedSentenceEntity -> translatedSentenceEntity.setRecordedStatus(StatusTypes.ASSIGNED));
-            this.translatedRepo.saveAll(translatedSentences);
+            translatedRepo.saveAll(translatedSentences);
             return new ResponseMessage("Updated list successfully");
         } catch (Exception e) {
             return new ResponseMessage(e.getMessage());
@@ -48,29 +48,29 @@ public class AudioController extends BaseController {
 
     @GetMapping({"users/audio/assignments"})
     public List<TranslatedSentenceEntity> getAudioAssignments(@RequestParam(defaultValue = "assigned") StatusTypes recordedStatus, @RequestParam Long userId) {
-        return this.translatedRepo.findByRecordedStatusAndAssignedRecorderUserId(recordedStatus, userId);
+        return translatedRepo.findByRecordedStatusAndAssignedRecorderUserId(recordedStatus, userId);
     }
 
     @GetMapping({"/recorder/tasks"})
     public ResponseEntity<SentenceToRecordDto> usersAudioTasks(@RequestParam(name = "status", defaultValue = "ASSIGNED_RECORDER") BatchStatus batchStatus,
                                                                @RequestParam Long recorderId,
                                                                @RequestParam(required = false) Long batchDetailsId) {
-        return this.voiceSvc.recorderAssignedTasks(recorderId, batchStatus, batchDetailsId);
+        return voiceSvc.recorderAssignedTasks(recorderId, batchStatus, batchDetailsId);
     }
 
     @GetMapping({"/fetch/voice/{id}"})
     public String getSingleAudio(@PathVariable Long id) {
-        return this.amazonClient.getSingleAudio(id);
+        return amazonClient.getSingleAudio(id);
     }
 
     @GetMapping({"/approved/voice"})
     public List<VoiceEntity> getVoiceByStatus(@RequestParam(defaultValue = "approved") StatusTypes status) {
-        return this.voiceSvc.getVoiceByStatus(status);
+        return voiceSvc.getVoiceByStatus(status);
     }
 
     @GetMapping({"/recorder/audiotasks"})
     public List<TranslatedSentenceEntity> getUsersAudioTasks(@RequestParam(defaultValue = "unreviewed") StatusTypes status, @RequestParam Long userId) {
-        return this.translatedRepo.findByRecordedStatusAndAssignedRecorderUserId(status, userId);
+        return translatedRepo.findByRecordedStatusAndAssignedRecorderUserId(status, userId);
     }
 
     @GetMapping({"/reviewer/audio"})
@@ -86,12 +86,12 @@ public class AudioController extends BaseController {
 
     @GetMapping({"/fetch/voice"})
     public List<VoiceEntity> allVoiceRecordings(@RequestParam(defaultValue = "0") int pageNo, int size) {
-        return this.voiceSvc.getVoiceByPage(pageNo, size);
+        return voiceSvc.getVoiceByPage(pageNo, size);
     }
 
     @GetMapping({"/all/voice"})
     public List<VoiceEntity> totalVoiceRecordings() {
-        return this.voiceRepo.findAll();
+        return voiceRepo.findAll();
     }
 
     @PutMapping({"/approve/voice/{voiceId}"})
@@ -118,20 +118,19 @@ public class AudioController extends BaseController {
     @PostMapping("/storage/uploadFile/{translatedSentenceId}")
     public ResponseEntity<ResponseMessage> uploadFile(@RequestPart("file") MultipartFile file,
                                                       @PathVariable Long translatedSentenceId,
-                                                      @RequestParam(required = false) Long userId,
                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) throws Exception {
-        return this.amazonClient.uploadFile(file, translatedSentenceId, null, userId, authorizationHeader);
+        return amazonClient.uploadFile(file, translatedSentenceId, null, authorizationHeader);
     }
 
     @PutMapping({"/storage/updateFile/{voiceId}"})
     public ResponseEntity<ResponseMessage> updateFile(@RequestPart("file") MultipartFile file,
                                                       @PathVariable Long voiceId,
                                                       @RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader) throws Exception {
-        return this.amazonClient.updateFile(voiceId, file, authorizationHeader);
+        return amazonClient.updateFile(voiceId, file, authorizationHeader);
     }
 
     @DeleteMapping({"/storage/deleteFile/{id}"})
     public String deleteFile(@PathVariable Long id) {
-        return this.amazonClient.deleteFileFromS3Bucket(id, true);
+        return amazonClient.deleteFileFromS3Bucket(id, true);
     }
 }
