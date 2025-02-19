@@ -61,6 +61,14 @@ public class TranslatedSentenceItemDto {
         TranslatedSentenceItemDto translatedSentenceItemDto = entityToDto(voice.getTranslatedSentence(), comments, isAccepted);
         translatedSentenceItemDto.audioLink = voice.getPresignedUrl();
         translatedSentenceItemDto.voiceId = voice.getVoiceId();
+
+        AudioDTO audioDTO = new AudioDTO();
+        audioDTO.setAudioLink(voice.getPresignedUrl());
+        audioDTO.setRecordedBy(voice.getUser() != null ? voice.getUser().getUsername() : null);
+        audioDTO.setVoiceId(voice.getVoiceId());
+        audioDTO.setAccepted(isAccepted);
+
+        translatedSentenceItemDto.audioList.add(audioDTO);
         return translatedSentenceItemDto;
     }
 }
