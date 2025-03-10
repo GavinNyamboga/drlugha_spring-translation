@@ -33,8 +33,9 @@ public class BatchDetailsStatsController extends BaseController {
                                                                         @RequestParam(name = "page", defaultValue = "0") Integer page,
                                                                         @RequestParam(name = "pageSize", defaultValue = "25") Integer pageSize,
                                                                         @RequestParam(name = "languageId", required = false) Long languageId,
-                                                                        @RequestParam(name = "status", required = false) BatchStatus status) {
-        return entity(batchDetailsStatsService.getBatchDetailsStats(batchType, page, pageSize, languageId, status));
+                                                                        @RequestParam(name = "status", required = false) BatchStatus status,
+                                                                        @RequestParam(name = "source", required = false) String source) {
+        return entity(batchDetailsStatsService.getBatchDetailsStats(batchType, page, pageSize, languageId, status, source));
     }
 
     @GetMapping({"/stats/user/batch-details"})

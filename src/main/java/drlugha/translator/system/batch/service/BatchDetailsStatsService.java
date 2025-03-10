@@ -2,6 +2,7 @@ package drlugha.translator.system.batch.service;
 
 import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.shared.exception.GeneralException;
 import drlugha.translator.system.batch.enums.BatchStatus;
@@ -83,21 +84,22 @@ public class BatchDetailsStatsService {
 
     }
 
-    public Page<BatchDetailsStats> getBatchDetailsStats(String batchTypeString, Integer page, Integer pageSize, Long languageId, BatchStatus status) {
+    public Page<BatchDetailsStats> getBatchDetailsStats(String batchTypeString, Integer page, Integer pageSize, Long languageId, BatchStatus status,
+                                                        String source) {
         BatchType batchType = BatchType.fromName(batchTypeString).orElse(BatchType.TEXT);
 
         Pageable pageable = PageRequest.of(page, pageSize);
-
-        Page<BatchDetailsStatsMapping> batchDetailsStatsMappings = null;
-
         Integer statusOrdinal =  status != null ? status.ordinal() : null;
+        YesNo fromFeedBack = YesNo.NO;
+        BatchType filterBatchType = batchType;
 
-        if (batchType == BatchType.AUDIO)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsAudio(pageable, languageId, statusOrdinal);
-        else if (batchType == BatchType.TEXT)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsText(pageable, languageId, statusOrdinal);
-        else if (batchType == BatchType.TEXT_FEEDBACK)
-            batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStatsFeedbackText(pageable, languageId, statusOrdinal);
+        if (batchType == BatchType.TEXT_FEEDBACK) {
+            fromFeedBack = YesNo.YES;
+            filterBatchType = BatchType.TEXT;
+        }
+
+        Page<BatchDetailsStatsMapping> batchDetailsStatsMappings = batchDetailsStatsRepository.getBatchDetailsStats(pageable,
+                languageId, statusOrdinal, fromFeedBack.name(), filterBatchType.name(), source);
 
         if (batchDetailsStatsMappings == null)
             return new PageImpl<>(Collections.emptyList());
@@ -129,18 +131,23 @@ public class BatchDetailsStatsService {
                 newStats.setExpert(mapping.getExpert());
                 newStats.setModerator(mapping.getModerator());
                 newStats.setAudioModerator(mapping.getAudioModerator());
+                newStats.setAudioExpertReviewer(mapping.getAudioExpertReviewer());
 
                 return newStats;
             });
 
             // Add audio stats for each mapping
             for (BatchDetailsStatsMapping mapping : entry.getValue()) {
-                BatchDetailsStats.AudioStats audioStats = new BatchDetailsStats.AudioStats();
-                audioStats.setAudiosRecorded(mapping.getAudiosRecorded());
-                audioStats.setRecorder(mapping.getRecorder());
-                audioStats.setAudiosApproved(mapping.getAudiosApproved());
-                audioStats.setAudiosRejected(mapping.getAudiosRejected());
-                batchDetailsStats.getAudioStats().add(audioStats);
+                if (mapping.getRecorder() != null) {
+                    BatchDetailsStats.AudioStats audioStats = new BatchDetailsStats.AudioStats();
+                    audioStats.setAudiosRecorded(mapping.getAudiosRecorded());
+                    audioStats.setRecorder(mapping.getRecorder());
+                    audioStats.setAudiosApproved(mapping.getAudiosApproved());
+                    audioStats.setAudiosRejected(mapping.getAudiosRejected());
+                    audioStats.setAudiosExpertApproved(mapping.getAudiosExpertApproved());
+                    audioStats.setAudiosExpertRejected(mapping.getAudiosExpertRejected());
+                    batchDetailsStats.getAudioStats().add(audioStats);
+                }
             }
         }
 

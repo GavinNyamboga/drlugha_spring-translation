@@ -33,6 +33,7 @@ public class BatchDetailsStats {
     private String expert;
     private String recorder;
     private String audioModerator;
+    private String audioExpertReviewer;
 
     private List<AudioStats> audioStats = new ArrayList<>();
 
@@ -45,6 +46,8 @@ public class BatchDetailsStats {
         private Integer audiosRecorded;
         private Integer audiosApproved;
         private Integer audiosRejected;
+        private Integer audiosExpertApproved;
+        private Integer audiosExpertRejected;
     }
 
     public static BatchDetailsStats entityToDto(BatchDetailsStatsEntity batchDetailsStatsEntity) {

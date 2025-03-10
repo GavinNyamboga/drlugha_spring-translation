@@ -127,6 +127,7 @@ public class BatchService {
         BatchEntity batchEntity = batchDto.dtoToEntity();
         batchEntity.setFromFeedback(YesNo.NO);
         batchEntity.setBatchOrigin(batchDto.getBatchOrigin());
+        batchEntity.setSentencesOrAudioCount((long) batchDto.getSentences().size());
         BatchEntity batch = this.batchRepo.save(batchEntity);
         return this.sentenceService.addSentences(batchDto.getSentences(), batch.getBatchNo());
     }
@@ -1248,6 +1249,7 @@ public class BatchService {
             batch.setBatchType(BatchType.TEXT);
             batch.setFromFeedback(YesNo.YES);
             batch.setBatchOrigin(BatchOrigin.FEEDBACK);
+            //batch.setSentencesOrAudioCount();
             batch.setDescription(String.format("User feedback from %s to %s", sourceLanguage.getName(), targetLanguage.getName()));
             batch.setDeletionStatus(DeletionStatus.NOT_DELETED);
             batch.setTargetLanguage(targetLanguage);

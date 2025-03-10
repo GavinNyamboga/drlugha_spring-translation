@@ -1,24 +1,30 @@
 package drlugha.translator.system.sentence.service;
 
+import drlugha.translator.auth.service.AuthenticationService;
+import drlugha.translator.configs.AmazonClient;
+import drlugha.translator.shared.dto.ResponseMessage;
+import drlugha.translator.shared.enums.StatusTypes;
+import drlugha.translator.shared.exception.BadRequestException;
+import drlugha.translator.system.batch.enums.BatchStatus;
+import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
-import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
+import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
 import drlugha.translator.system.batch.repository.BatchDetailsStatsRepository;
+import drlugha.translator.system.batch.repository.BatchDetailsUserAssigmentRepo;
 import drlugha.translator.system.sentence.dto.RejectTranslationDto;
 import drlugha.translator.system.sentence.dto.TranslateSentenceDTO;
 import drlugha.translator.system.sentence.dto.TranslatedSentencesPerBatchDto;
-import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.sentence.model.ExpertCommentEntity;
 import drlugha.translator.system.sentence.model.ModeratorCommentEntity;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
 import drlugha.translator.system.sentence.model.TranslatedSentenceLogsEntity;
-import drlugha.translator.shared.enums.StatusTypes;
-import drlugha.translator.shared.dto.ResponseMessage;
-import drlugha.translator.system.sentence.repository.*;
-import drlugha.translator.configs.AmazonClient;
-import drlugha.translator.util.JwtUtil;
-import org.slf4j.Logger;
-import org.springframework.beans.factory.annotation.Autowired;
+import drlugha.translator.system.sentence.repository.ExpertCommentRepo;
+import drlugha.translator.system.sentence.repository.ModeratorCommentRepo;
+import drlugha.translator.system.sentence.repository.TranslatedSentenceLogsRepo;
+import drlugha.translator.system.sentence.repository.TranslatedSentenceRepository;
+import drlugha.translator.system.user.model.User;
+import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -32,175 +38,131 @@ import java.util.*;
 
 
 @Service
+@RequiredArgsConstructor
 public class TranslatedSentenceService {
 
-    @Autowired
-    TranslatedSentenceRepository translatedRepo;
+    private final TranslatedSentenceRepository translatedRepo;
 
-    @Autowired
-    BatchDetailsRepository batchDetailsRepo;
+    private final BatchDetailsRepository batchDetailsRepo;
 
-    @Autowired
-    SentenceRepository sentenceRepo;
+    private final ModeratorCommentRepo moderatorCommentRepo;
 
-    @Autowired
-    TranslateAssignmentRepository assignmentRepo;
+    private final ExpertCommentRepo expertCommentRepo;
 
-    @Autowired
-    CorrectedSentencesRepository correctedSentencesRepo;
+    private final BatchDetailsStatsRepository batchDetailsStatsRepository;
 
-    @Autowired
-    ModeratorCommentRepo moderatorCommentRepo;
+    private final TranslatedSentenceLogsRepo translatedSentenceLogsRepo;
 
-    @Autowired
-    ExpertCommentRepo expertCommentRepo;
+    private final AuthenticationService authenticationService;
 
-    @Autowired
-    BatchDetailsStatsRepository batchDetailsStatsRepository;
+    private final AmazonClient amazonClient;
 
-    @Autowired
-    TranslatedSentenceLogsRepo translatedSentenceLogsRepo;
-
-    @Autowired
-    private JwtUtil jwtUtil;
-
-    @Autowired
-    Logger logger;
-
-    @Autowired
-    AmazonClient amazonClient;
-
+    private final BatchDetailsUserAssigmentRepo batchDetailsUserAssigmentRepo;
 
     public List<TranslatedSentenceEntity> getTranslatedSentencesByPage(int pageNo, int size) {
         Pageable paging = PageRequest.of(pageNo, size);
-        Page<TranslatedSentenceEntity> PagedResult = translatedRepo.findAll(paging);
+        Page<TranslatedSentenceEntity> pagedResult = translatedRepo.findAll(paging);
 
-        if (PagedResult.hasContent()) {
-            return PagedResult.getContent();
+        if (pagedResult.hasContent()) {
+            return pagedResult.getContent();
         } else
-            return new ArrayList<TranslatedSentenceEntity>();
+            return new ArrayList<>();
     }
 
     public List<TranslatedSentenceEntity> getTranslatedByStatus() {
         return translatedRepo.findByReviewStatusAndRecordedStatus();
     }
 
-//	public TranslatedSentenceEntity translateSentence(TranslateSentenceDto translateSentenceDto, Long assignmentId) throws Exception{
-//
-//		if(translateSentenceDto.getTranslatedText() == null || translateSentenceDto.getTranslatedText().equals("")) {
-//			throw new Exception("Translated text not captured");
-//		} else {
-//
-//			TranslatedSentenceEntity translatedSentence = new TranslatedSentenceEntity();
-//			translatedSentence.setTranslatedText(translateSentenceDto.getTranslatedText());
-//
-//			AssignedSentencesEntity assignmentEntity = assignmentRepo.findById(assignmentId).get();
-//				translatedSentence.setLanguage(assignmentEntity.getTranslateToLanguage());
-//				translatedSentence.setAssignedToReview(assignmentEntity.getAssignedToReview().getUserId());
-//				translatedSentence.setAssignedTranslator(assignmentEntity.getTranslator().getUserId());
-//				translatedSentence.setAssignedSentenceId(assignmentId);
-//				assignmentEntity.setTranslationStatus(StatusTypes.completed);
-//
-//			if(translatedSentence.getDateCreated() == null) {
-//				translatedSentence.setDateCreated(new Date());
-//			}
-//			if(translatedSentence.getDateModified() == null) {
-//				translatedSentence.setDateModified(new Date());
-//			}
-//			if(translatedSentence.getReviewStatus() == null) {
-//				translatedSentence.setReviewStatus(StatusTypes.unreviewed);
-//			}
-//			if (translatedSentence.getRecordedStatus() == null) {
-//				translatedSentence.setRecordedStatus(StatusTypes.notRecorded);
-//			}
-//
-//
-//			return translatedRepo.save(translatedSentence);
-//		}
-//
-//	}
 
     @Transactional
-    public TranslatedSentenceEntity newtranslateSentence(TranslateSentenceDTO translateSentenceDto, Long sentenceId) throws Exception {
-        if (translateSentenceDto.getTranslatedText() == null || translateSentenceDto.getTranslatedText().equals("")) {
-            throw new Exception("Translated text not captured");
-        } else {
-            List<TranslatedSentenceEntity> existingTranslations = translatedRepo.findAllBySentenceIdAndBatchDetailsId(sentenceId, translateSentenceDto.getBatchDetailsId());
-            TranslatedSentenceEntity translatedSentence;
-            if (!existingTranslations.isEmpty())
-                translatedSentence = existingTranslations.get(0);
-            else
-                translatedSentence = new TranslatedSentenceEntity();
-            translatedSentence.setTranslatedText(translateSentenceDto.getTranslatedText());
-
-            BatchDetailsEntity batchDetails = batchDetailsRepo.findById(translateSentenceDto.getBatchDetailsId()).get();
-            String language = batchDetails.getLanguage().toString();
-            long id = batchDetails.getTranslatedBy().getUserId();
-            logger.info("" + id);
-            logger.info(language);
-
-
-            translatedSentence.setLanguage(batchDetails.getLanguage());
-            translatedSentence.setBatchDetailsId(translateSentenceDto.getBatchDetailsId());
-            translatedSentence.setReviewStatus(StatusTypes.UNREVIEWED);
-            translatedSentence.setSentenceId(sentenceId);
-            if (translatedSentence.getTranslatedSentenceId() == null) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(translateSentenceDto.getBatchDetailsId());
-                BatchDetailsStatsEntity userStats;
-                userStats = optionalUserStats.orElseGet(BatchDetailsStatsEntity::new);
-                int sentencesTranslated = userStats.getSentencesTranslated() + 1;
-                userStats.setSentencesTranslated(sentencesTranslated);
-                userStats.setBatchDetails(batchDetails);
-                batchDetailsStatsRepository.save(userStats);
-            }
-
-            return translatedRepo.save(translatedSentence);
+    public TranslatedSentenceEntity newtranslateSentence(TranslateSentenceDTO translateSentenceDto, Long sentenceId) {
+        if (translateSentenceDto.getTranslatedText() == null || translateSentenceDto.getTranslatedText().isEmpty()) {
+            throw new BadRequestException("Translated text not captured");
         }
+        User currentUser = authenticationService.getCurrentUser();
+
+        List<TranslatedSentenceEntity> existingTranslations = translatedRepo.findAllBySentenceIdAndBatchDetailsId(sentenceId, translateSentenceDto.getBatchDetailsId());
+        TranslatedSentenceEntity translatedSentence;
+        if (!existingTranslations.isEmpty())
+            translatedSentence = existingTranslations.get(0);
+        else
+            translatedSentence = new TranslatedSentenceEntity();
+        translatedSentence.setTranslatedText(translateSentenceDto.getTranslatedText());
+
+        BatchDetailsEntity batchDetails = batchDetailsRepo.findById(translateSentenceDto.getBatchDetailsId()).orElse(null);
+        if (batchDetails == null)
+            throw new BadRequestException("Batch details not found");
+
+        translatedSentence.setLanguage(batchDetails.getLanguage());
+        translatedSentence.setBatchDetailsId(translateSentenceDto.getBatchDetailsId());
+        translatedSentence.setReviewStatus(StatusTypes.UNREVIEWED);
+        translatedSentence.setSentenceId(sentenceId);
+        translatedSentence.setRecordedBy(currentUser);
+        if (translatedSentence.getTranslatedSentenceId() == null) { //Update user stats
+            Long userId = currentUser.getUserId();
+
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int translatedCount = userAssignment.getTranslated() != null ? userAssignment.getTranslated() : 0;
+                    userAssignment.setTranslated(translatedCount + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
+                }
+            }
+        }
+
+        return translatedRepo.save(translatedSentence);
 
     }
 
     public TranslatedSentenceEntity editTranslatedSentence(TranslatedSentenceEntity translatedSentence, Long id) {
-        TranslatedSentenceEntity translatedStnc = translatedRepo.findById(id).get();
+        TranslatedSentenceEntity translatedSentence1 = translatedRepo.findById(id).orElse(null);
+        if (translatedSentence1 == null)
+            throw new BadRequestException("Translated sentence not found");
 
         if (Objects.nonNull(translatedSentence.getTranslatedText())) {
-            translatedStnc.setTranslatedText(translatedSentence.getTranslatedText());
+            translatedSentence1.setTranslatedText(translatedSentence.getTranslatedText());
         }
 
-        translatedStnc.setReviewStatus(StatusTypes.UNREVIEWED);
-        return translatedRepo.save(translatedStnc);
+        translatedSentence1.setReviewStatus(StatusTypes.UNREVIEWED);
+        return translatedRepo.save(translatedSentence1);
     }
 
     @Transactional
     public TranslatedSentenceEntity approveTranslatedSentence(Long id) {
+        TranslatedSentenceEntity translatedSentence = translatedRepo.findById(id).orElse(null);
+        if (translatedSentence == null)
+            throw new BadRequestException("Translated sentence not found");
 
-        TranslatedSentenceEntity translatedStnc = translatedRepo.findById(id).get();
-//		AssignedSentencesEntity assignedSentence = assignmentRepo.findById(id).get();
+        translatedSentence.setReviewStatus(StatusTypes.APPROVED);
+        if (translatedSentence.getSecondReview() == StatusTypes.REJECTED)
+            translatedSentence.setSecondReview(StatusTypes.UNREVIEWED);
+        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedSentence);
 
-        translatedStnc.setReviewStatus(StatusTypes.APPROVED);
-        if (translatedStnc.getSecondReview() == StatusTypes.REJECTED)
-            translatedStnc.setSecondReview(StatusTypes.UNREVIEWED);
-        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
+        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
+        translatedSentenceLogs.setDateModerated(new Date());
+        translatedSentenceLogsRepo.save(translatedSentenceLogs);
 
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(updatedSentence.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
             if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    if ((userStats.getSentencesApproved() + userStats.getSentencesRejected()) < userStats.getSentencesTranslated()) {
-                        int sentencesApproved = userStats.getSentencesApproved() + 1;
-                        userStats.setSentencesApproved(sentencesApproved);
-                        batchDetailsStatsRepository.save(userStats);
+                Long userId = translatedSentence.getRecordedBy().getUserId();
 
-                        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
-                        translatedSentenceLogs.setDateModerated(new Date());
-                        translatedSentenceLogsRepo.save(translatedSentenceLogs);
+                List<BatchDetailsUserAssignment> userAssignmentList =
+                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+                if (!userAssignmentList.isEmpty()) {
+                    for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                        int approved = userAssignment.getTextApproved() != null ? userAssignment.getTextApproved() : 0;
+                        userAssignment.setTextApproved(approved + 1);
+
+                        batchDetailsUserAssigmentRepo.save(userAssignment);
                     }
                 }
             }
         }
-
 
         return updatedSentence;
     }
@@ -216,39 +178,40 @@ public class TranslatedSentenceService {
         if (optionalTranslatedSentence.isEmpty())
             return ResponseEntity.badRequest().body(new ResponseMessage("Error! The translated sentence you are trying to reject does not exist"));
 
-        TranslatedSentenceEntity translatedStnc = optionalTranslatedSentence.get();
-        if (!translatedStnc.getBatchDetails().getTranslationVerifiedBy().getUsername().matches(username)) {
+        TranslatedSentenceEntity translatedSentence = optionalTranslatedSentence.get();
+        if (!translatedSentence.getBatchDetails().getTranslationVerifiedBy().getUsername().matches(username)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body(new ResponseMessage("You are unauthorized to reject this translation"));
         }
-        translatedStnc.setReviewStatus(StatusTypes.REJECTED);
+        translatedSentence.setReviewStatus(StatusTypes.REJECTED);
+        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedSentence);
+
+        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
+        translatedSentenceLogs.setDateModerated(new Date());
+        translatedSentenceLogsRepo.save(translatedSentenceLogs);
 
         ModeratorCommentEntity moderatorCommentEntity =
-                moderatorCommentRepo.findAllByTranslatedSentence_TranslatedSentenceId(translatedStnc.getTranslatedSentenceId());
+                moderatorCommentRepo.findAllByTranslatedSentence_TranslatedSentenceId(translatedSentence.getTranslatedSentenceId());
 
         if (moderatorCommentEntity == null)
             moderatorCommentEntity = new ModeratorCommentEntity();
-
-        moderatorCommentEntity.setTranslatedSentence(translatedStnc);
+        moderatorCommentEntity.setTranslatedSentence(translatedSentence);
         moderatorCommentEntity.setComment(rejectTranslationDto.getComment());
-
-        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
         moderatorCommentRepo.save(moderatorCommentEntity);
 
-        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
+        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedSentence.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    if ((userStats.getSentencesApproved() + userStats.getSentencesRejected()) < userStats.getSentencesTranslated()) {
-                        int sentencesRejected = userStats.getSentencesRejected() + 1;
-                        userStats.setSentencesRejected(sentencesRejected);
-                        batchDetailsStatsRepository.save(userStats);
+            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) {
+                Long userId = translatedSentence.getRecordedBy().getUserId();
 
-                        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
-                        translatedSentenceLogs.setDateModerated(new Date());
-                        translatedSentenceLogsRepo.save(translatedSentenceLogs);
+                List<BatchDetailsUserAssignment> userAssignmentList =
+                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+                if (!userAssignmentList.isEmpty()) {
+                    for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                        int rejected = userAssignment.getTextRejected() != null ? userAssignment.getTextRejected() : 0;
+                        userAssignment.setTextRejected(rejected + 1);
+
+                        batchDetailsUserAssigmentRepo.save(userAssignment);
                     }
                 }
             }
@@ -270,32 +233,37 @@ public class TranslatedSentenceService {
 
     public TranslatedSentenceEntity expertApproveTranslatedSentence(Long id) {
 
-        TranslatedSentenceEntity translatedStnc = translatedRepo.findById(id).get();
+        TranslatedSentenceEntity translatedSentence = translatedRepo.findById(id).orElse(null);
+        if (translatedSentence == null)
+            throw new BadRequestException("The translated sentence does not exist");
 
-        translatedStnc.setSecondReview(StatusTypes.APPROVED);
-//		translatedStnc.setSeconds(timeTaken.getSeconds());
+        translatedSentence.setSecondReview(StatusTypes.APPROVED);
+        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedSentence);
 
-        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
+        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
+        translatedSentenceLogs.setDateExpertModerated(new Date());
+        translatedSentenceLogsRepo.save(translatedSentenceLogs);
 
-        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
+        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedSentence.getBatchDetailsId());
+
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_EXPERT_REVIEWER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    int noOfSentencesToReview = (int) Math.ceil(0.1 * batchDetails.getTranslatedSentence().size());
-                    if ((userStats.getSentencesExpertApproved() + userStats.getSentencesExpertRejected()) < noOfSentencesToReview) {
-                        int sentencesExpertApproved = userStats.getSentencesExpertApproved() + 1;
-                        userStats.setSentencesExpertApproved(sentencesExpertApproved);
-                        batchDetailsStatsRepository.save(userStats);
+            Long userId = batchDetails.getSecondReviewerId();
+            User currentUser = authenticationService.getCurrentUser();
+            if (currentUser != null)
+                userId = currentUser.getUserId();
 
-                        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
-                        translatedSentenceLogs.setDateExpertModerated(new Date());
-                        translatedSentenceLogsRepo.save(translatedSentenceLogs);
-                    }
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.EXPERT_TEXT_REVIEWER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int approved = userAssignment.getTextExpertApproved() != null ? userAssignment.getTextExpertApproved() : 0;
+                    userAssignment.setTextExpertApproved(approved + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
                 }
             }
+
         }
 
         return updatedSentence;
@@ -320,7 +288,11 @@ public class TranslatedSentenceService {
         }
 
         translatedStnc.setSecondReview(StatusTypes.REJECTED);
-//		translatedStnc.setSeconds(timeTaken.getSeconds());
+
+        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
+        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
+        translatedSentenceLogs.setDateExpertModerated(new Date());
+        translatedSentenceLogsRepo.save(translatedSentenceLogs);
 
         ExpertCommentEntity expertCommentEntity =
                 expertCommentRepo.findAllByTranslatedSentence_TranslatedSentenceId(translatedStnc.getTranslatedSentenceId());
@@ -329,29 +301,27 @@ public class TranslatedSentenceService {
             expertCommentEntity = new ExpertCommentEntity();
         expertCommentEntity.setTranslatedSentence(translatedStnc);
         expertCommentEntity.setComment(rejectTranslationDto.getComment());
-
-        TranslatedSentenceEntity updatedSentence = translatedRepo.save(translatedStnc);
         expertCommentRepo.save(expertCommentEntity);
 
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(translatedStnc.getBatchDetailsId());
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_EXPERT_REVIEWER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    int noOfSentencesToReview = (int) Math.ceil(0.1 * batchDetails.getTranslatedSentence().size());
-                    if ((userStats.getSentencesExpertApproved() + userStats.getSentencesExpertRejected()) < noOfSentencesToReview) {
-                        int sentencesExpertRejected = userStats.getSentencesExpertRejected() + 1;
-                        userStats.setSentencesExpertRejected(sentencesExpertRejected);
-                        batchDetailsStatsRepository.save(userStats);
+            Long userId = batchDetails.getSecondReviewerId();
+            User currentUser = authenticationService.getCurrentUser();
+            if (currentUser != null)
+                userId = currentUser.getUserId();
 
-                        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedSentence);
-                        translatedSentenceLogs.setDateExpertModerated(new Date());
-                        translatedSentenceLogsRepo.save(translatedSentenceLogs);
-                    }
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.EXPERT_TEXT_REVIEWER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int rejected = userAssignment.getTextExpertRejected() != null ? userAssignment.getTextExpertRejected() : 0;
+                    userAssignment.setTextExpertRejected(rejected + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
                 }
             }
+
         }
 
         return ResponseEntity.ok(new ResponseMessage("Translation successfully rejected "));

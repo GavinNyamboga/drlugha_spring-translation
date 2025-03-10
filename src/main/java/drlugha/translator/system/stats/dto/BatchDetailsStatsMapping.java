@@ -1,6 +1,5 @@
 package drlugha.translator.system.stats.dto;
 
-import drlugha.translator.system.batch.enums.BatchStatus;
 
 public interface BatchDetailsStatsMapping {
 
@@ -31,6 +30,8 @@ public interface BatchDetailsStatsMapping {
     Integer getAudiosApproved();
 
     Integer getAudiosRejected();
+    Integer getAudiosExpertApproved();
+    Integer getAudiosExpertRejected();
 
     String getTranslator();
 
@@ -41,5 +42,7 @@ public interface BatchDetailsStatsMapping {
     String getRecorder();
 
     String getAudioModerator();
+
+    String getAudioExpertReviewer();
 
 }

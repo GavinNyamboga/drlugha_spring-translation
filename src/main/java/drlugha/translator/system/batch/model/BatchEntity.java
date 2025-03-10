@@ -47,6 +47,8 @@ public class BatchEntity {
     @OneToMany(mappedBy = "batchNo", fetch = FetchType.LAZY)
     private List<Sentence> sentences;
 
+    private Long sentencesOrAudioCount;
+
     @Enumerated(EnumType.STRING)
     @NonNull
     @Column(name = "batch_type", columnDefinition = "VARCHAR(255) NOT NULL DEFAULT 'TEXT'")

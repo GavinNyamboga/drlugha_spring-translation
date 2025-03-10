@@ -180,7 +180,7 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
     @Query("SELECT b FROM BatchDetailsStatsEntity b WHERE b.batchDetails.batch.batchType = :batchType and b.batchDetails.batch.fromFeedback=:fromFeedback")
     List<BatchDetailsStatsEntity> findAllByBatchTypeAndFromFeedback(BatchType batchType, YesNo fromFeedback, Sort by);
 
-    @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
+   /* @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
             "                              COUNT(s.sentence_id)                AS numberOfSentences," +
             "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
             "                              SUM(IF(ts.review_status = 0, 1, 0)) AS sentencesApproved," +
@@ -255,8 +255,52 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
             countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
     Page<BatchDetailsStatsMapping> getBatchDetailsStatsText(Pageable pageable, @Param("languageId") Long languageId,
                                                             @Param("status") Integer status);
+*/
+    @Query(value = "SELECT SQL_CALC_FOUND_ROWS bd.batch_details_id                                               AS batchDetailsId," +
+            "                           b.batch_no                                                        AS batchNo," +
+            "                           b.source                                                          AS source," +
+            "                           l.name                                                            AS 'language'," +
+            "                           bd.batch_status                                                   AS status," +
+            "                           b.sentences_or_audio_count                                        AS numberOfSentences," +
+            "                           SUM(COALESCE(ua.translated, 0))                                   AS sentencesTranslated," +
+            "                           SUM(COALESCE(ua.text_approved, 0))                                AS sentencesApproved," +
+            "                           SUM(COALESCE(ua.text_rejected, 0))                                AS sentencesRejected," +
+            "                           SUM(COALESCE(ua.text_expert_approved, 0))                         AS sentencesExpertApproved," +
+            "                           SUM(COALESCE(ua.text_expert_rejected, 0))                         AS sentencesExpertRejected," +
+            "                           SUM(COALESCE(ua.recorded, 0))                                     AS audiosRecorded," +
+            "                           SUM(COALESCE(ua.audio_approved, 0))                               AS audiosApproved," +
+            "                           SUM(COALESCE(ua.audio_rejected, 0))                               AS audiosRejected," +
+            "                           SUM(COALESCE(ua.audio_expert_approved, 0))                        AS audiosExpertApproved," +
+            "                           SUM(COALESCE(ua.audio_expert_rejected, 0))                        AS audiosExpertRejected," +
+            "                           MAX(IF(ua.batch_role = 'TEXT_TRANSLATOR', u.username, NULL))      AS translator," +
+            "                           MAX(IF(ua.batch_role = 'TEXT_VERIFIER', u.username, NULL))        AS moderator," +
+            "                           MAX(IF(ua.batch_role = 'EXPERT_TEXT_REVIEWER', u.username, NULL)) AS expert," +
+            "                           MAX(IF(ua.batch_role = 'AUDIO_RECORDER', u.username, NULL))       AS recorder," +
+            "                           MAX(IF(ua.batch_role = 'AUDIO_VERIFIER', u.username, NULL))       AS audioModerator," +
+            "                           MAX(IF(ua.batch_role = 'AUDIO_VERIFIER', u.username, NULL))       AS audioExpertReviewer," +
+            "                           COUNT(*) OVER ()                                                  AS total_count " +
+            "FROM batch_details bd" +
+            "         INNER JOIN batches b ON bd.batch_id = b.batch_no" +
+            "         INNER JOIN languages l ON bd.language = l.language_id" +
+            "         LEFT JOIN batch_user_assignments ua ON bd.batch_details_id = ua.batch_details_id" +
+            "         LEFT JOIN users u ON ua.user_id = u.user_id " +
+            "WHERE b.deletion_status = 0" +
+            "  AND bd.deletion_status = 0" +
+            "  AND l.deletion_status = 0" +
+            "  AND b.batch_type = :batchType" +
+            "  AND b.from_feedback = :fromFeedback" +
+            "  AND (:languageId IS NULL OR bd.language = :languageId)" +
+            "  AND (:status IS NULL OR bd.batch_status = :status) " +
+            "  AND (:source IS NULL OR b.source LIKE CONCAT('%', :source, '%')) " +
+            "GROUP BY bd.batch_details_id," +
+            "         CASE WHEN ua.batch_role = 'AUDIO_RECORDER' THEN u.username END " +
+            "ORDER BY bd.batch_id " +
+            "LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}",countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
+    Page<BatchDetailsStatsMapping> getBatchDetailsStats(Pageable pageable, @Param("languageId") Long languageId,
+                                                        @Param("status") Integer status, @Param("fromFeedback") String fromFeedback,
+                                                        @Param("batchType") String batchType, @Param("source") String source);
 
-    @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
+   /* @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
             "                              COUNT(s.sentence_id)                AS numberOfSentences," +
             "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
             "                              SUM(IF(ts.review_status = 0, 1, 0)) AS sentencesApproved," +
@@ -331,7 +375,6 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
     Page<BatchDetailsStatsMapping> getBatchDetailsStatsFeedbackText(Pageable pageable, @Param("languageId") Long languageId,
                                                                     @Param("status") Integer status);
 
-
     @Query(value = "WITH SentenceStats AS (SELECT bd.batch_details_id," +
             "                              COUNT(s.sentence_id)                AS numberOfSentences," +
             "                              COUNT(ts.translated_sentence_id)    AS sentencesTranslated," +
@@ -405,5 +448,5 @@ public interface BatchDetailsStatsRepository extends JpaRepository<BatchDetailsS
             "LIMIT :#{#pageable.pageSize} OFFSET :#{#pageable.offset}",
             countQuery = "SELECT FOUND_ROWS()", nativeQuery = true)
     Page<BatchDetailsStatsMapping> getBatchDetailsStatsAudio(Pageable pageable, @Param("languageId") Long languageId,
-                                                             @Param("status") Integer status);
+                                                             @Param("status") Integer status);*/
 }

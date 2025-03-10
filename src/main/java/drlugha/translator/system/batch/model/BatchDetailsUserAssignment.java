@@ -44,4 +44,33 @@ public class BatchDetailsUserAssignment extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private UserBatchRole batchRole;
 
+    @Column
+    private Integer translated;
+
+    @Column
+    private Integer textApproved;
+
+    @Column
+    private Integer textRejected;
+
+    @Column
+    private Integer textExpertApproved;
+
+    @Column
+    private Integer textExpertRejected;
+
+    @Column
+    private Integer recorded;
+
+    @Column
+    private Integer audioApproved;
+
+    @Column
+    private Integer audioRejected;
+
+    @Column
+    private Integer audioExpertApproved;
+
+    @Column
+    private Integer audioExpertRejected;
 }

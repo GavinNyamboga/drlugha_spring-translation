@@ -14,7 +14,6 @@ import drlugha.translator.system.batch.enums.BatchStatus;
 import drlugha.translator.system.batch.enums.BatchType;
 import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
-import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
 import drlugha.translator.system.batch.model.BatchEntity;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
@@ -161,22 +160,27 @@ public class AmazonClient {
         voice.setUser(userEntity);
         voiceRepo.save(voice);
 
-        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepository.findById(translatedSentenceEntity.getBatchDetailsId());
-        if (optionalBatchDetails.isPresent()) {
-            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (voiceId != null) {
-                batchDetails.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
-                batchDetailsRepository.save(batchDetails);
-            }
+        if (voiceId != null) {
+            Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepository.findById(translatedSentenceEntity.getBatchDetailsId());
 
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_RECORDER) { // Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    int audiosRecorded = userStats.getAudiosRecorded() + 1;
-                    userStats.setAudiosRecorded(audiosRecorded);
-                    batchDetailsStatsRepository.save(userStats);
+            if (optionalBatchDetails.isPresent()) {
+                BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+                if (batchDetails.getBatchStatus() != BatchStatus.ASSIGNED_AUDIO_VERIFIER) {
+                    batchDetails.setBatchStatus(BatchStatus.ASSIGNED_AUDIO_VERIFIER);
+                    batchDetailsRepository.save(batchDetails);
                 }
+
+                List<BatchDetailsUserAssignment> userAssignmentList =
+                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userEntity.getUserId(), UserBatchRole.AUDIO_RECORDER, batchDetails.getBatchDetailsId());
+                if (!userAssignmentList.isEmpty()) {
+                    for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                        int recorded = userAssignment.getRecorded() != null ? userAssignment.getRecorded() : 0;
+                        userAssignment.setRecorded(recorded + 1);
+
+                        batchDetailsUserAssigmentRepo.save(userAssignment);
+                    }
+                }
+
             }
         }
 

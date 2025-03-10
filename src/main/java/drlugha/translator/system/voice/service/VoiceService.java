@@ -8,10 +8,12 @@ import drlugha.translator.shared.enums.YesNo;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.shared.exception.NotFoundException;
 import drlugha.translator.system.batch.enums.BatchStatus;
+import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
-import drlugha.translator.system.batch.model.BatchDetailsStatsEntity;
+import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
 import drlugha.translator.system.batch.repository.BatchDetailsRepository;
 import drlugha.translator.system.batch.repository.BatchDetailsStatsRepository;
+import drlugha.translator.system.batch.repository.BatchDetailsUserAssigmentRepo;
 import drlugha.translator.system.sentence.dto.SentenceToRecordDto;
 import drlugha.translator.system.sentence.dto.TranslatedSentenceItemDto;
 import drlugha.translator.system.sentence.model.TranslatedSentenceEntity;
@@ -50,9 +52,9 @@ public class VoiceService {
 
     private final BatchDetailsRepository batchDetailsRepo;
 
-    private final BatchDetailsStatsRepository batchDetailsStatsRepository;
-
     private final TranslatedSentenceLogsRepo translatedSentenceLogsRepo;
+
+    private final BatchDetailsUserAssigmentRepo batchDetailsUserAssigmentRepo;
 
     private final JwtUtil jwtUtil;
 
@@ -60,17 +62,14 @@ public class VoiceService {
 
     Logger logger = LoggerFactory.getLogger(VoiceService.class);
 
-    private static String UPLOADED_FOLDER = "/home/kelvin/eclipse-workspace/hackerrank/";
-
-
     public List<VoiceEntity> getVoiceByPage(int pageNo, int size) {
         Pageable paging = PageRequest.of(pageNo, size);
-        Page<VoiceEntity> PagedResult = voiceRepo.findAll(paging);
+        Page<VoiceEntity> pagedResult = voiceRepo.findAll(paging);
 
-        if (PagedResult.hasContent()) {
-            return PagedResult.getContent();
+        if (pagedResult.hasContent()) {
+            return pagedResult.getContent();
         } else
-            return new ArrayList<VoiceEntity>();
+            return new ArrayList<>();
     }
 
     public List<VoiceEntity> getVoiceByStatus(StatusTypes status) {
@@ -95,64 +94,10 @@ public class VoiceService {
         return voiceRepo.save(voice);
     }
 
-    public VoiceEntity getSingleVoiceRecord(Long voice_id) {
-        return voiceRepo.findById(voice_id).get();
+    public VoiceEntity getSingleVoiceRecord(Long voiceId) {
+        return voiceRepo.findById(voiceId).orElse(null);
     }
 
-
-//	 public void deleteVoiceRecord(Long voice_id) {
-//		 VoiceEntity voice = getSingleVoiceRecord(voice_id);
-//		 String fileName = voice.getFilepath().toString();
-//		 try {
-//	            Files.delete(Paths.get(fileName));
-//	        } catch (IOException e) {
-//	            e.printStackTrace();
-//	        }
-//		 voiceRepo.deleteById(voice_id);
-//	 }
-
-    public String recordVoiceTest(@RequestHeader(HttpHeaders.AUTHORIZATION) String authorizationHeader, @RequestParam("file") MultipartFile file,
-                                  VoiceEntity voice) {
-
-        String username = null;
-        String jwt = null;
-
-
-        if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
-            jwt = authorizationHeader.substring(7);
-            username = jwtUtil.extractUsername(jwt);
-        }
-
-        if (voice.getDateCreated() == null) {
-            voice.setDateCreated(new Date());
-        }
-        if (voice.getDateModified() == null) {
-            voice.setDateModified(new Date());
-        }
-        if (voice.getStatus() == null) {
-            voice.setStatus(StatusTypes.UNREVIEWED);
-        }
-
-
-        voiceRepo.save(voice);
-
-        return "Audio Uploaded successfully";
-    }
-
-    public VoiceEntity updateStatus(VoiceEntity voiceStatus, Long voice_id) {
-
-        VoiceEntity voice = voiceRepo.findById(voice_id).get();
-
-        if (Objects.nonNull(voiceStatus.getStatus())) {
-            voice.setStatus(voiceStatus.getStatus());
-        }
-
-        voice.setDateModified(new Date());
-
-        VoiceEntity updatedVoice = voiceRepo.save(voice);
-
-        return updatedVoice;
-    }
 
     //Fetch recorder's pending tasks
     public ResponseEntity<SentenceToRecordDto> recorderAssignedTasks(Long recorderId, BatchStatus batchStatus, Long batchDetailsId) {
@@ -220,24 +165,28 @@ public class VoiceService {
         VoiceEntity updatedVoiceEntity = voiceRepo.save(voiceEntity);
         Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+
+
+        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedVoiceEntity.getTranslatedSentence());
+        translatedSentenceLogs.setDateAudioModerated(new Date());
+        translatedSentenceLogsRepo.save(translatedSentenceLogs);
+
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_AUDIO_VERIFIER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    if ((userStats.getAudiosApproved() + userStats.getAudiosRejected()) < userStats.getAudiosRecorded()) {
-                        int audiosApproved = userStats.getAudiosApproved() + 1;
-                        userStats.setAudiosApproved(audiosApproved);
-                        batchDetailsStatsRepository.save(userStats);
+            Long userId = voiceEntity.getUserId();
 
-                        TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedVoiceEntity.getTranslatedSentence());
-                        translatedSentenceLogs.setDateAudioModerated(new Date());
-                        translatedSentenceLogsRepo.save(translatedSentenceLogs);
-                    }
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.AUDIO_RECORDER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int approved = userAssignment.getAudioApproved() != null ? userAssignment.getAudioApproved() : 0;
+                    userAssignment.setAudioApproved(approved + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
                 }
             }
         }
+
         return new ResponseMessage("Voice recording Approved");
     }
 
@@ -254,22 +203,24 @@ public class VoiceService {
 
         Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
         Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+
         if (optionalBatchDetails.isPresent()) {
             BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-            if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_AUDIO_VERIFIER) { //Update user stats
-                Optional<BatchDetailsStatsEntity> optionalUserStats = batchDetailsStatsRepository.findByBatchDetailsBatchDetailsId(batchDetails.getBatchDetailsId());
-                if (optionalUserStats.isPresent()) {
-                    BatchDetailsStatsEntity userStats = optionalUserStats.get();
-                    int audiosRejected = userStats.getAudiosRejected() + 1;
-                    userStats.setAudiosRejected(audiosRejected);
-                    batchDetailsStatsRepository.save(userStats);
+            Long userId = voiceEntity.getUserId();
 
-                    TranslatedSentenceLogsEntity translatedSentenceLogs = getTranslatedSentenceLogsEntity(updatedVoiceEntity.getTranslatedSentence());
-                    translatedSentenceLogs.setDateAudioModerated(new Date());
-                    translatedSentenceLogsRepo.save(translatedSentenceLogs);
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.AUDIO_RECORDER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int rejected = userAssignment.getAudioRejected() != null ? userAssignment.getAudioRejected() : 0;
+                    userAssignment.setAudioRejected(rejected + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
                 }
             }
+
         }
+
         return new ResponseMessage("Voice recording Rejected");
     }
 
@@ -290,13 +241,25 @@ public class VoiceService {
         voiceEntity.setExpertApproved(YesNo.YES);
         voiceRepo.save(voiceEntity);
 
-        // STATS
-//        Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
-//        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
-//        if (optionalBatchDetails.isPresent()) {
-//            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-//
-//        }
+        Long batchDetailsId = voiceEntity.getBatchDetailsId();
+        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+
+        if (optionalBatchDetails.isPresent()) {
+            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+            Long userId = voiceEntity.getUserId();
+
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.AUDIO_RECORDER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int approved = userAssignment.getAudioExpertApproved() != null ? userAssignment.getAudioExpertApproved() : 0;
+                    userAssignment.setAudioExpertApproved(approved + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
+                }
+            }
+
+        }
 
         return new ResponseMessage("Voice recording Approved");
     }
@@ -320,11 +283,25 @@ public class VoiceService {
         voiceEntity.setRejectionReason(reason);
         voiceRepo.save(voiceEntity);
 
-//        Long batchDetailsId = voiceEntity.getTranslatedSentence().getBatchDetailsId();
-//        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
-//        if (optionalBatchDetails.isPresent()) {
-//            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
-//        }
+        Long batchDetailsId = voiceEntity.getBatchDetailsId();
+        Optional<BatchDetailsEntity> optionalBatchDetails = batchDetailsRepo.findById(batchDetailsId);
+
+        if (optionalBatchDetails.isPresent()) {
+            BatchDetailsEntity batchDetails = optionalBatchDetails.get();
+            Long userId = voiceEntity.getUserId();
+
+            List<BatchDetailsUserAssignment> userAssignmentList =
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.AUDIO_RECORDER, batchDetails.getBatchDetailsId());
+            if (!userAssignmentList.isEmpty()) {
+                for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
+                    int rejected = userAssignment.getAudioExpertRejected() != null ? userAssignment.getAudioExpertRejected() : 0;
+                    userAssignment.setAudioExpertRejected(rejected + 1);
+
+                    batchDetailsUserAssigmentRepo.save(userAssignment);
+                }
+            }
+
+        }
 
         return new ResponseMessage("Voice recording Rejected");
     }
