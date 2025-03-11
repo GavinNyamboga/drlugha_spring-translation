@@ -51,18 +51,20 @@ public interface BatchDetailsRepository extends JpaRepository<BatchDetailsEntity
 
     void deleteAllByBatchId(Long batchNo);
 
-    @Query(value = "SELECT COUNT(CASE WHEN (s.sentence_text IS NOT NULL) THEN 1  END) as totalSentences, " +
-            "       COUNT(CASE WHEN (s.audio_link IS NOT NULL) THEN 1  END) as totalUploadedAudios " +
-            "FROM batches b LEFT JOIN sentences s on b.batch_no = s.batch_no " +
-            "where s.deletion_status = 0 AND b.deletion_status = 0", nativeQuery = true)
+    @Query(value = "SELECT SUM(IF(b.batch_type = 'AUDIO', COALESCE(b.sentences_or_audio_count, 0), 0)) AS totalUploadedAudios," +
+            "       SUM(IF(b.batch_type = 'TEXT', COALESCE(b.sentences_or_audio_count, 0), 0))  AS totalSentences " +
+            "FROM batches b " +
+            "WHERE b.deletion_status = 0", nativeQuery = true)
     TotalSentencesDto getTotalSentences();
 
-    @Query(value = "SELECT count(CASE WHEN (b.batch_type = 'TEXT') THEN 1 END) AS totalTranslatedSentences," +
-            "       count(CASE WHEN (b.batch_type = 'AUDIO') THEN 1 END) AS totalTranscribedAudios " +
-            "FROM translated_sentence ts " +
-            "    CROSS JOIN batch_details bd on bd.batch_details_id = ts.batch_details_id " +
-            "    CROSS JOIN batches b on bd.batch_id = b.batch_no " +
-            "    WHERE ts.deletion_status = 0 and bd.deletion_status = 0 AND b.deletion_status = 0", nativeQuery = true)
+    @Query(value = "SELECT SUM(IF(b.batch_type = 'TEXT', COALESCE(ua.translated, 0), 0))  AS totalTranslatedSentences, " +
+            "       SUM(IF(b.batch_type = 'AUDIO', COALESCE(ua.translated, 0), 0)) AS totalTranscribedAudios " +
+            "FROM batch_user_assignments ua " +
+            "         INNER JOIN batch_details bd ON ua.batch_details_id = bd.batch_details_id " +
+            "         INNER JOIN batches b ON bd.batch_id = b.batch_no " +
+            "WHERE bd.deletion_status = 0 " +
+            "  AND ua.deleted = 0 " +
+            "  AND b.deletion_status = 0", nativeQuery = true)
     TotalTranslatedSentencesDto getTotalTranslatedSentences();
 
     @Query("SELECT bd.batchDetailsId FROM BatchDetailsEntity bd")

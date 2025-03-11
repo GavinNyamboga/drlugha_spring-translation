@@ -6,6 +6,7 @@ import drlugha.translator.shared.dto.ResponseMessage;
 import drlugha.translator.shared.enums.StatusTypes;
 import drlugha.translator.shared.exception.BadRequestException;
 import drlugha.translator.system.batch.enums.BatchStatus;
+import drlugha.translator.system.batch.enums.BatchType;
 import drlugha.translator.system.batch.enums.UserBatchRole;
 import drlugha.translator.system.batch.model.BatchDetailsEntity;
 import drlugha.translator.system.batch.model.BatchDetailsUserAssignment;
@@ -81,6 +82,12 @@ public class TranslatedSentenceService {
         }
         User currentUser = authenticationService.getCurrentUser();
 
+        BatchDetailsEntity batchDetailsEntity = batchDetailsRepo.findById(translateSentenceDto.getBatchDetailsId()).orElse(null);
+        if (batchDetailsEntity == null)
+            throw new BadRequestException("Batch details not found");
+
+        BatchType batchType = batchDetailsEntity.getBatch().getBatchType();
+
         List<TranslatedSentenceEntity> existingTranslations = translatedRepo.findAllBySentenceIdAndBatchDetailsId(sentenceId, translateSentenceDto.getBatchDetailsId());
         TranslatedSentenceEntity translatedSentence;
         if (!existingTranslations.isEmpty())
@@ -101,8 +108,12 @@ public class TranslatedSentenceService {
         if (translatedSentence.getTranslatedSentenceId() == null) { //Update user stats
             Long userId = currentUser.getUserId();
 
+            UserBatchRole role = UserBatchRole.TEXT_TRANSLATOR;
+            if (batchType == BatchType.AUDIO)
+                role = UserBatchRole.AUDIO_TRANSCRIBER;
+
             List<BatchDetailsUserAssignment> userAssignmentList =
-                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetails.getBatchDetailsId());
             if (!userAssignmentList.isEmpty()) {
                 for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
                     int translatedCount = userAssignment.getTranslated() != null ? userAssignment.getTranslated() : 0;
@@ -151,8 +162,12 @@ public class TranslatedSentenceService {
             if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) { //Update user stats
                 Long userId = translatedSentence.getRecordedBy().getUserId();
 
+                UserBatchRole role = UserBatchRole.TEXT_TRANSLATOR;
+                if (batchDetails.getBatch().getBatchType() == BatchType.AUDIO)
+                    role = UserBatchRole.AUDIO_TRANSCRIBER;
+
                 List<BatchDetailsUserAssignment> userAssignmentList =
-                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetails.getBatchDetailsId());
                 if (!userAssignmentList.isEmpty()) {
                     for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
                         int approved = userAssignment.getTextApproved() != null ? userAssignment.getTextApproved() : 0;
@@ -204,8 +219,12 @@ public class TranslatedSentenceService {
             if (batchDetails.getBatchStatus() == BatchStatus.ASSIGNED_TEXT_VERIFIER) {
                 Long userId = translatedSentence.getRecordedBy().getUserId();
 
+                UserBatchRole role = UserBatchRole.TEXT_TRANSLATOR;
+                if (batchDetails.getBatch().getBatchType() == BatchType.AUDIO)
+                    role = UserBatchRole.AUDIO_TRANSCRIBER;
+
                 List<BatchDetailsUserAssignment> userAssignmentList =
-                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.TEXT_TRANSLATOR, batchDetails.getBatchDetailsId());
+                        batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetails.getBatchDetailsId());
                 if (!userAssignmentList.isEmpty()) {
                     for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
                         int rejected = userAssignment.getTextRejected() != null ? userAssignment.getTextRejected() : 0;
@@ -253,8 +272,12 @@ public class TranslatedSentenceService {
             if (currentUser != null)
                 userId = currentUser.getUserId();
 
+            UserBatchRole role = UserBatchRole.TEXT_TRANSLATOR;
+            if (batchDetails.getBatch().getBatchType() == BatchType.AUDIO)
+                role = UserBatchRole.AUDIO_TRANSCRIBER;
+
             List<BatchDetailsUserAssignment> userAssignmentList =
-                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.EXPERT_TEXT_REVIEWER, batchDetails.getBatchDetailsId());
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetails.getBatchDetailsId());
             if (!userAssignmentList.isEmpty()) {
                 for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
                     int approved = userAssignment.getTextExpertApproved() != null ? userAssignment.getTextExpertApproved() : 0;
@@ -311,8 +334,12 @@ public class TranslatedSentenceService {
             if (currentUser != null)
                 userId = currentUser.getUserId();
 
+            UserBatchRole role = UserBatchRole.TEXT_TRANSLATOR;
+            if (batchDetails.getBatch().getBatchType() == BatchType.AUDIO)
+                role = UserBatchRole.AUDIO_TRANSCRIBER;
+
             List<BatchDetailsUserAssignment> userAssignmentList =
-                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, UserBatchRole.EXPERT_TEXT_REVIEWER, batchDetails.getBatchDetailsId());
+                    batchDetailsUserAssigmentRepo.findByUserIdAndBatchRoleAndBatchDetails_BatchDetailsId(userId, role, batchDetails.getBatchDetailsId());
             if (!userAssignmentList.isEmpty()) {
                 for (BatchDetailsUserAssignment userAssignment : userAssignmentList) {
                     int rejected = userAssignment.getTextExpertRejected() != null ? userAssignment.getTextExpertRejected() : 0;

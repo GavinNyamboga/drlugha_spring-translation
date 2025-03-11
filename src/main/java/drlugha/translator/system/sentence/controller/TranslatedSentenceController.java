@@ -100,7 +100,7 @@ public class TranslatedSentenceController extends BaseController {
     @PutMapping({"/approve/translatedsentence/{id}"})
     public ResponseMessage approveTranslatedStatus(@PathVariable Long id) throws JsonProcessingException {
         try {
-            TranslatedSentenceEntity updatedTranslatedSentenceStatus = translatedSvc.approveTranslatedSentence(id);
+            translatedSvc.approveTranslatedSentence(id);
             return new ResponseMessage("Translation Approved");
         } catch (NoSuchElementException e) {
             return new ResponseMessage(e.getMessage());
